@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { CartEditPortal } from "@/components/cart/edit-portal"
 import { LanguageSwitcher } from "@/components/lang/language-switcher"
 import { useAuth } from "@/components/auth/auth-provider"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 
 interface NavigationItem {
@@ -147,11 +147,49 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-4">
+<<<<<<< HEAD
             {navigation.showLanguageSwitcher && (
               <>
                 {console.log("[v0] Showing Language Switcher:", navigation.showLanguageSwitcher)}
                 <LanguageSwitcher />
               </>
+=======
+            {showLang && <LanguageSwitcher />}
+
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Account" className="h-16 w-16">
+                    <span className="relative inline-flex">
+                      <Image src="/icons/builder.png" alt="Account" width={32} height={32} priority />
+                      {/* Online indicator dot (bottom-right) */}
+                      <span
+                        className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                        aria-hidden="true"
+                      ></span>
+                      <span className="sr-only">Вы вошли в систему</span>
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => router.push("/account")}>Зайти в личный кабинет</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-red-600 focus:text-red-700" onClick={() => logout()}>
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Login"
+                className="h-16 w-16"
+                onClick={() => setAuthOpen(true)}
+              >
+                <Image src="/icons/builder.png" alt="Login" width={32} height={32} priority />
+              </Button>
+>>>>>>> feat/lang-switch-toggle
             )}
 
             {navigation.showLoginButton && (

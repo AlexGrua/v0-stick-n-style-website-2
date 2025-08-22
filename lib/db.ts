@@ -171,6 +171,7 @@ export function db(): DBShape {
         exportLogoUrl: "",
         createdAt: now,
         updatedAt: now,
+        showLanguageSwitcher: true,
       },
       homePage: getDefaultHomePageData(),
     }
