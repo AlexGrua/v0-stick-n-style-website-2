@@ -18,6 +18,7 @@ export async function PUT(req: NextRequest) {
     ...body,
     exportColumns: Array.isArray(body.exportColumns) ? body.exportColumns : state.settings.exportColumns,
     updatedAt: now,
+    showLanguageSwitcher: typeof body.showLanguageSwitcher === "boolean" ? body.showLanguageSwitcher : state.settings.showLanguageSwitcher,
   }
   state.settings = updated
   return NextResponse.json(updated)

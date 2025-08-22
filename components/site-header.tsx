@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { CartEditPortal } from "@/components/cart/edit-portal"
 import { LanguageSwitcher } from "@/components/lang/language-switcher"
 import { useAuth } from "@/components/auth/auth-provider"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 
 const nav = [
@@ -34,6 +34,25 @@ export function SiteHeader() {
   const router = useRouter()
   const { user, logout } = useAuth()
   const [authOpen, setAuthOpen] = useState(false)
+  const [showLang, setShowLang] = useState<boolean>(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/settings", { cache: "no-store" })
+        if (res.ok) {
+          const s = await res.json()
+          if (!cancelled) setShowLang(!!s.showLanguageSwitcher)
+        }
+      } catch {
+        // ignore
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <>
@@ -66,7 +85,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-4">
-            <LanguageSwitcher />
+            {showLang && <LanguageSwitcher />}
 
             {user ? (
               <DropdownMenu>
@@ -136,7 +155,7 @@ export function SiteHeader() {
                   </Link>
                 </Button>
                 <div className="mt-6">
-                  <LanguageSwitcher mode="list" />
+                  {showLang && <LanguageSwitcher mode="list" />}
                 </div>
               </SheetContent>
             </Sheet>
