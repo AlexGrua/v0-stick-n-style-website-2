@@ -139,6 +139,11 @@ export function LanguageSwitcher({
   const apply = (code: string) => {
     setLang(code)
     setLangState(code)
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent("lang:changed", { detail: code }))
+      } catch {}
+    }
     console.log("[v0] Language switched to:", code)
   }
 

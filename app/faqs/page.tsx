@@ -1,15 +1,17 @@
+"use client"
+
 import { SiteFooter } from "@/components/site-footer"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { useContentTranslations } from "@/lib/content-i18n"
 
 export default function FaqsPage() {
+  const { dict } = useContentTranslations("page", "faqs")
   return (
     <div className="min-h-screen bg-white">
       {/* Header is provided by root layout. Do not render here. */}
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-semibold">FAQs</h1>
-        <p className="mt-2 max-w-2xl text-muted-foreground">
-          Answers to common questions. Need more details? Visit Contact Us and send a quick message.
-        </p>
+        <h1 className="text-3xl font-semibold">{dict.name || "FAQs"}</h1>
+        <p className="mt-2 max-w-2xl text-muted-foreground">{dict.description || "Answers to common questions. Need more details? Visit Contact Us and send a quick message."}</p>
 
         <div className="mt-6">
           <Accordion type="single" collapsible className="w-full">

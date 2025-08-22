@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useContentTranslations } from "@/lib/content-i18n"
 
 type AboutPageData = {
   hero: {
@@ -95,6 +96,7 @@ const defaultData: AboutPageData = {
 export default function AboutPage() {
   const [data, setData] = useState<AboutPageData>(defaultData)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { dict } = useContentTranslations("page", "about")
 
   useEffect(() => {
     loadData()
@@ -134,8 +136,8 @@ export default function AboutPage() {
         return (
           <div key="hero" className="grid gap-6 md:grid-cols-2 items-center">
             <div>
-              <h1 className="text-3xl font-semibold mb-4">{data.hero.title}</h1>
-              <p className="text-muted-foreground">{data.hero.description}</p>
+              <h1 className="text-3xl font-semibold mb-4">{dict.name || data.hero.title}</h1>
+              <p className="text-muted-foreground">{dict.description || data.hero.description}</p>
             </div>
             <div className="relative h-64 md:h-80 rounded-lg border overflow-hidden">
               {data.hero.images.length > 0 && (

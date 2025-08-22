@@ -18,12 +18,16 @@ import {
   Flame,
   X,
 } from "lucide-react"
+import { useT } from "@/lib/i18n"
+import { useContentTranslations } from "@/lib/content-i18n"
 
 interface ProductDetailViewProps {
   product: Product
 }
 
 export function ProductDetailView({ product }: ProductDetailViewProps) {
+  const t = useT()
+  const { dict } = useContentTranslations("product", product?.id)
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0)
   const [selectedColor, setSelectedColor] = React.useState<string>("")
   const [activeMode, setActiveMode] = React.useState<"slider" | "color">("slider")
@@ -231,7 +235,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         <div className="space-y-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-3">
-              {product.name}
+              {dict.name || product.name}
               {productSKU && <span className="font-bold text-gray-900"> • {productSKU}</span>}
             </h1>
             {(categoryName || subcategoryName) && (
@@ -246,7 +250,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           {/* Available Colors */}
           {product.colorVariants && product.colorVariants.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Available Colors</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">{t('product.colors.available','Available Colors')}</h3>
               <div className="flex gap-3 mb-3">
                 {product.colorVariants.map((variant: any, index: number) => (
                   <button
@@ -270,29 +274,29 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 ))}
               </div>
               <p className="text-sm text-gray-600">
-                Selected: <span className="font-medium">{selectedColor}</span>
+                {t('product.colors.selected','Selected:')} <span className="font-medium">{selectedColor}</span>
               </p>
             </div>
           )}
 
           {/* Description */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Description</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">{t('product.description','Description')}</h3>
             <p className="text-gray-700 leading-relaxed text-base">
-              {product.description ||
+              {dict.description || product.description ||
                 "High-quality product with excellent durability and modern design, perfect for enhancing both residential and commercial spaces."}
             </p>
           </div>
 
           {/* Specifications */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-6 uppercase tracking-wide">Specifications</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-6 uppercase tracking-wide">{t('product.specs.title','Specifications')}</h3>
             <div className="space-y-6">
               {(specs.material || specs.productSpecifications?.material) && (
                 <div>
                   <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider flex items-center gap-2">
                     {getSpecIcon("material")}
-                    Material
+                    {t('product.specs.material','Material')}
                   </h4>
                   <div className="flex gap-2 flex-wrap">
                     {(() => {
@@ -325,7 +329,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 <div>
                   <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider flex items-center gap-2">
                     {getSpecIcon("usage")}
-                    Usage
+                    {t('product.specs.usage','Usage')}
                   </h4>
                   <div className="flex gap-2 flex-wrap">
                     {(() => {
@@ -358,7 +362,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 <div>
                   <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider flex items-center gap-2">
                     {getSpecIcon("application")}
-                    Application
+                    {t('product.specs.application','Application')}
                   </h4>
                   <div className="flex gap-2 flex-wrap">
                     {(() => {
@@ -391,7 +395,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 <div>
                   <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider flex items-center gap-2">
                     {getSpecIcon("adhesion")}
-                    Adhesion
+                    {t('product.specs.adhesion','Adhesion')}
                   </h4>
                   <Badge variant="secondary" className="bg-lime-50 text-lime-700 border-lime-200">
                     {(() => {
@@ -419,7 +423,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 <div>
                   <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider flex items-center gap-2">
                     {getSpecIcon("physical")}
-                    Physical Properties
+                    {t('product.specs.physical','Physical Properties')}
                   </h4>
                   <div className="flex gap-2 flex-wrap">
                     {(specs.physicalProperties || specs.productSpecifications?.physicalProperties || []).map(
@@ -442,7 +446,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               {/* Suitable Surfaces */}
               {specs.suitableSurfaces && (
                 <div>
-                  <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider">Suitable Surfaces</h4>
+                  <h4 className="text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider">{t('product.specs.suitable_surfaces','Suitable Surfaces')}</h4>
                   <div className="flex gap-2 flex-wrap">
                     {Array.isArray(specs.suitableSurfaces) ? (
                       specs.suitableSurfaces.map((surface: string, index: number) => (
@@ -468,7 +472,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         specs.interiorApplications.length > 0 && (
           <div className="bg-gray-50 py-16 -mx-4 px-4 rounded-3xl">
             <div className="max-w-6xl mx-auto">
-              <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">Interior Applications</h2>
+              <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">{t('product.interior_applications','Interior Applications')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {specs.interiorApplications.slice(0, 3).map((app: any, index: number) => {
                   const allAppImages = specs.interiorApplications.map((app: any) => app.image).filter(Boolean)
@@ -519,8 +523,25 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                         </div>
                       </div>
                       <div className="p-6">
-                        <h3 className="font-bold text-xl mb-3 text-gray-900">{app.name}</h3>
-                        <p className="text-gray-600 leading-relaxed">{app.description}</p>
+                        {(() => {
+                          const raw = String(app?.key || app?.name || `app-${index + 1}`)
+                          const slug = raw
+                            .toLowerCase()
+                            .normalize("NFKD")
+                            .replace(/[\u0300-\u036f]/g, "")
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/^-+|-+$/g, "")
+                          return (
+                            <>
+                              <h3 className="font-bold text-xl mb-3 text-gray-900">
+                                {t(`interior.${slug}.name`, app.name || raw)}
+                              </h3>
+                              <p className="text-gray-600 leading-relaxed">
+                                {t(`interior.${slug}.desc`, app.description || "")}
+                              </p>
+                            </>
+                          )
+                        })()}
                       </div>
                     </div>
                   )
@@ -534,7 +555,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         Array.isArray(specs.technicalSpecifications) &&
         specs.technicalSpecifications.length > 0 && (
           <div>
-            <h2 className="text-3xl font-bold mb-8">Technical Specifications</h2>
+            <h2 className="text-3xl font-bold mb-8">{t('product.technical.title','Technical Specifications')}</h2>
 
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
@@ -542,22 +563,22 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Size (mm)
+                        {t('product.technical.size_mm','Size (mm)')}
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Thickness (mm)
+                        {t('product.technical.thickness_mm','Thickness (mm)')}
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Pieces per Box
+                        {t('product.technical.pcs_per_box','Pieces per Box')}
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Box Size (cm)
+                        {t('product.technical.box_size_cm','Box Size (cm)')}
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Weight (kg)
+                        {t('product.technical.weight_kg','Weight (kg)')}
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Volume (m³)
+                        {t('product.technical.volume_m3','Volume (m³)')}
                       </th>
                     </tr>
                   </thead>

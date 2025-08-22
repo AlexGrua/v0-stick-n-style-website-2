@@ -20,6 +20,7 @@ import { LanguageSwitcher } from "@/components/lang/language-switcher"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useState, useEffect } from "react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
+import { useT } from "@/lib/i18n"
 
 interface NavigationItem {
   id: string
@@ -55,6 +56,7 @@ const defaultNavigation: NavigationSettings = {
 }
 
 export function SiteHeader() {
+  const t = useT()
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
@@ -133,14 +135,14 @@ export function SiteHeader() {
                   item.className,
                 )}
               >
-                {item.label}
+                {t(`nav.${item.id}`, item.label)}
               </Link>
             ))}
             {navigation.showCreateNOrder && (
               <Button asChild className="ml-2 bg-orange-600 hover:bg-orange-700 text-white">
                 <Link href="/create-n-order" aria-label="Create'N'Order" className="flex items-center gap-2">
                   <Puzzle className="w-4 h-4 text-white" />
-                  Create&apos;N&apos;Order
+                  {t("cta.create_order", "Create'N'Order")}
                 </Link>
               </Button>
             )}
@@ -229,7 +231,7 @@ export function SiteHeader() {
                   <Button asChild className="w-full bg-orange-600 hover:bg-orange-700">
                     <Link href="/create-n-order" className="flex items-center gap-2">
                       <Puzzle className="w-4 h-4 text-white" />
-                      Create&apos;N&apos;Order
+                      {t("cta.create_order", "Create'N'Order")}
                     </Link>
                   </Button>
                 )}

@@ -20,13 +20,13 @@ export async function GET(request: NextRequest, { params }: { params: { key: str
         .eq("key", "language_switcher_visible")
         .single()
 
-      const navigationData = navData?.data || {}
-      // Check if data exists and is explicitly false, otherwise default to true
-      const switcherVisible = switcherData && switcherData.data === false ? false : true
+      if (navError && navError.code !== "PGRST116") throw navError
+      if (switcherError && switcherError.code !== "PGRST116") throw switcherError
 
-      console.log("[v0] Language switcher visibility from DB:", switcherData?.data)
-      console.log("[v0] Switcher data exists:", !!switcherData)
-      console.log("[v0] Final showLanguageSwitcher value:", switcherVisible)
+      const navigationData = navData?.data || {}
+      const navToggle = (navigationData as any).showLanguageSwitcher
+      const switcherVisible =
+        typeof navToggle === "boolean" ? navToggle : (switcherData?.data?.visible !== false)
 
       return NextResponse.json({
         success: true,
