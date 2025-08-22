@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { CartEditPortal } from "@/components/cart/edit-portal"
 import { LanguageSwitcher } from "@/components/lang/language-switcher"
 import { useAuth } from "@/components/auth/auth-provider"
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 
 interface NavigationItem {
@@ -147,103 +147,108 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-4">
-            {navigation.showLanguageSwitcher && <LanguageSwitcher />}
+            {navigation.showLanguageSwitcher && (
+              <>
+                {console.log("[v0] Showing Language Switcher:", navigation.showLanguageSwitcher)}
+                <LanguageSwitcher />
+              </>
+            )}
 
-          {navigation.showLoginButton && (
-            <>
-              {console.log("[v0] Showing Login Button:", navigation.showLoginButton)}
-              {user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Account" className="h-16 w-16">
-                      <span className="relative inline-flex">
-                        <Image src="/icons/builder.png" alt="Account" width={32} height={32} priority />
-                        <span
-                          className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white"
-                          aria-hidden="true"
-                        ></span>
-                        <span className="sr-only">Вы вошли в систему</span>
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={() => router.push("/account")}>
-                      Зайти в личный кабинет
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600 focus:text-red-700" onClick={() => logout()}>
-                      Log out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Login"
-                  className="h-16 w-16"
-                  onClick={() => setAuthOpen(true)}
-                >
-                  <Image src="/icons/builder.png" alt="Login" width={32} height={32} priority />
-                </Button>
-              )}
-            </>
-          )}
+            {navigation.showLoginButton && (
+              <>
+                {console.log("[v0] Showing Login Button:", navigation.showLoginButton)}
+                {user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label="Account" className="h-16 w-16">
+                        <span className="relative inline-flex">
+                          <Image src="/icons/builder.png" alt="Account" width={32} height={32} priority />
+                          <span
+                            className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                            aria-hidden="true"
+                          ></span>
+                          <span className="sr-only">Вы вошли в систему</span>
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => router.push("/account")}>
+                        Зайти в личный кабинет
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600 focus:text-red-700" onClick={() => logout()}>
+                        Log out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Login"
+                    className="h-16 w-16"
+                    onClick={() => setAuthOpen(true)}
+                  >
+                    <Image src="/icons/builder.png" alt="Login" width={32} height={32} priority />
+                  </Button>
+                )}
+              </>
+            )}
 
-          {navigation.showCartButton && (
-            <>
-              {console.log("[v0] Showing Cart Button:", navigation.showCartButton)}
-              <Button asChild variant="ghost" size="icon" aria-label="Cart" className="h-16 w-16">
-                <Link href="/create-n-order">
-                  <Image src="/images/icons/cart-outline.svg" alt="Cart" width={32} height={32} priority />
-                </Link>
-              </Button>
-            </>
-          )}
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden bg-transparent" aria-label="Open menu">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-80">
-              <div className="flex items-center gap-2">
-                <Image src="/sns-logo.png" alt="Stick'N'Style" width={80} height={21} priority />
-              </div>
-              <Separator className="my-4" />
-              <div className="grid gap-3">
-                {visibleMenuItems.map((item) => (
-                  <Link key={item.id} href={item.href} className="text-sm">
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-              <Separator className="my-4" />
-              {navigation.showCreateNOrder && (
-                <Button asChild className="w-full bg-orange-600 hover:bg-orange-700">
-                  <Link href="/create-n-order" className="flex items-center gap-2">
-                    <Puzzle className="w-4 h-4 text-white" />
-                    Create&apos;N&apos;Order
+            {navigation.showCartButton && (
+              <>
+                {console.log("[v0] Showing Cart Button:", navigation.showCartButton)}
+                <Button asChild variant="ghost" size="icon" aria-label="Cart" className="h-16 w-16">
+                  <Link href="/create-n-order">
+                    <Image src="/images/icons/cart-outline.svg" alt="Cart" width={32} height={32} priority />
                   </Link>
                 </Button>
-              )}
-              {navigation.showLanguageSwitcher && (
-                <div className="mt-6">
-                  <LanguageSwitcher mode="list" />
+              </>
+            )}
+
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden bg-transparent" aria-label="Open menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80">
+                <div className="flex items-center gap-2">
+                  <Image src="/sns-logo.png" alt="Stick'N'Style" width={80} height={21} priority />
                 </div>
-              )}
-            </SheetContent>
-          </Sheet>
+                <Separator className="my-4" />
+                <div className="grid gap-3">
+                  {visibleMenuItems.map((item) => (
+                    <Link key={item.id} href={item.href} className="text-sm">
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+                <Separator className="my-4" />
+                {navigation.showCreateNOrder && (
+                  <Button asChild className="w-full bg-orange-600 hover:bg-orange-700">
+                    <Link href="/create-n-order" className="flex items-center gap-2">
+                      <Puzzle className="w-4 h-4 text-white" />
+                      Create&apos;N&apos;Order
+                    </Link>
+                  </Button>
+                )}
+                {navigation.showLanguageSwitcher && (
+                  <div className="mt-6">
+                    <LanguageSwitcher mode="list" />
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
-      </div>
 
-      <CartEditPortal />
-    </header>
+        <CartEditPortal />
+      </header>
 
-    <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
-  </>
-)
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+    </>
+  )
 }
 
 export default SiteHeader

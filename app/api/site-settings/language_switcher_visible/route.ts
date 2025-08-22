@@ -1,53 +1,82 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 
-const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
-const memoryStore: { visible?: boolean } = (globalThis as any).__LANG_SWITCH__ || {}
-if (!(globalThis as any).__LANG_SWITCH__) (globalThis as any).__LANG_SWITCH__ = memoryStore
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET() {
   try {
-    if (!hasSupabase) {
-      const visible = memoryStore.visible !== false
-      return NextResponse.json({ success: true, data: { visible } })
-    }
+    console.log("[v0] GET language_switcher_visible request")
 
-    const supabase = createClient()
-    const { data, error } = await supabase.from("site_settings").select("data").eq("key", "language_switcher_visible").single()
+    const { data, error } = await supabaseAdmin
+      .from("site_settings")
+      .select("data")
+      .eq("key", "language_switcher_visible")
+      .single()
+
     if (error && error.code !== "PGRST116") {
+      console.error("[v0] Error fetching language switcher visibility:", error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
-    const visible = data?.data?.visible !== false
-    return NextResponse.json({ success: true, data: { visible } })
+
+    const visible = data?.data?.visible !== false // Default to true if not set
+    console.log("[v0] Language switcher visibility:", visible)
+
+    return NextResponse.json({
+      success: true,
+      data: { visible },
+    })
   } catch (error) {
+    console.error("[v0] Error in GET language_switcher_visible:", error)
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
+    console.log("[v0] PUT language_switcher_visible request")
     const { visible } = await request.json()
-    if (!hasSupabase) {
-      memoryStore.visible = !!visible
-      return NextResponse.json({ success: true })
-    }
+    console.log("[v0] Setting language switcher visibility to:", visible)
 
-    const supabase = createClient()
-    const { data: existing } = await supabase.from("site_settings").select("id").eq("key", "language_switcher_visible").single()
+    // Check if record exists
+    const { data: existing } = await supabaseAdmin
+      .from("site_settings")
+      .select("id")
+      .eq("key", "language_switcher_visible")
+      .single()
 
     if (existing) {
-      const { error } = await supabase
+      // Update existing record
+      const { error } = await supabaseAdmin
         .from("site_settings")
-        .update({ data: { visible }, updated_at: new Date().toISOString() })
+        .update({
+          data: { visible },
+          updated_at: new Date().toISOString(),
+        })
         .eq("key", "language_switcher_visible")
-      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+
+      if (error) {
+        console.error("[v0] Error updating language switcher visibility:", error)
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      }
     } else {
-      const { error } = await supabase.from("site_settings").insert({ key: "language_switcher_visible", data: { visible }, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      // Create new record
+      const { error } = await supabaseAdmin.from("site_settings").insert({
+        key: "language_switcher_visible",
+        data: { visible },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+
+      if (error) {
+        console.error("[v0] Error creating language switcher visibility:", error)
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      }
     }
 
+    console.log("[v0] Language switcher visibility saved successfully")
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error("[v0] Error in PUT language_switcher_visible:", error)
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
   }
 }

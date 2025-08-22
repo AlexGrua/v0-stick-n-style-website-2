@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Switch } from "@/components/ui/switch"
 
 type SettingsDto = {
   companyName: string
@@ -14,7 +13,6 @@ type SettingsDto = {
   currency: string
   exportColumns: string[]
   exportLogoUrl?: string
-  showLanguageSwitcher: boolean
 }
 
 async function fetchSettings() {
@@ -91,13 +89,6 @@ export default function Page() {
           <div className="grid gap-2">
             <Label>Export Logo URL</Label>
             <Input defaultValue={data.exportLogoUrl} onBlur={(e) => mut.mutate({ exportLogoUrl: e.target.value })} />
-          </div>
-          <div className="grid gap-2">
-            <Label>Show Language Switcher</Label>
-            <div className="flex items-center gap-3">
-              <Switch checked={!!data.showLanguageSwitcher} onCheckedChange={(v) => mut.mutate({ showLanguageSwitcher: v })} />
-              <span className="text-sm text-muted-foreground">Toggle visibility in header</span>
-            </div>
           </div>
         </CardContent>
       </Card>

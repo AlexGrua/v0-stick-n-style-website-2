@@ -19,7 +19,6 @@ import {
   Navigation,
   Search,
   Languages,
-  Globe,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -38,8 +37,6 @@ const groups: NavGroup[] = [
       { href: "/admin/categories", label: "Categories", icon: Layers },
       { href: "/admin/supply/suppliers", label: "Suppliers", icon: Truck },
       { href: "/admin/orders", label: "Orders", icon: Receipt },
-      { href: "/admin/translations", label: "Translations", icon: Globe },
-      { href: "/admin/translations/bulk", label: "Bulk Translations", icon: Database },
     ],
   },
   {

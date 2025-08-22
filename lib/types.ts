@@ -71,7 +71,6 @@ export type Settings = {
   exportLogoUrl?: string
   createdAt: string
   updatedAt: string
-  showLanguageSwitcher: boolean
 }
 
 /**
