@@ -1,7 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Category } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,24 +18,42 @@ async function fetchCategories() {
 
 export default function CategoriesPage() {
   const { toast } = useToast()
-  const qc = useQueryClient()
-  const { data, isLoading } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories })
+  const [data, setData] = useState<{ items: Category[] } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [edit, setEdit] = useState<Category | null>(null)
   const [search, setSearch] = useState("")
 
-  const del = useMutation({
-    mutationFn: async (id: string) => {
+  const loadCategories = async () => {
+    try {
+      setIsLoading(true)
+      const result = await fetchCategories()
+      setData(result)
+    } catch (error) {
+      console.error("Failed to load categories:", error)
+      toast({ title: "Error loading categories", variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  const handleDelete = async (id: string) => {
+    try {
       const res = await fetch(`/api/categories/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Delete failed")
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["categories"] })
+      await loadCategories() // Перезагружаем данные
       toast({ title: "Deleted" })
-    },
-  })
+    } catch (error) {
+      console.error("Delete failed:", error)
+      toast({ title: "Delete failed", variant: "destructive" })
+    }
+  }
 
-  const items = (data?.items ?? []).filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+  const items = (data?.items ?? []).filter((c) => c.name && c.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="p-6">
@@ -85,7 +102,7 @@ export default function CategoriesPage() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => del.mutate(c.id)} aria-label="Delete">
+                    <Button size="icon" variant="ghost" onClick={() => handleDelete(c.id)} aria-label="Delete">
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
                   </div>
@@ -94,8 +111,8 @@ export default function CategoriesPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {c.subs.length ? (
-                    c.subs.map((s) => <Badge key={s.id || s.name}>{s.name}</Badge>)
+                  {c.subs && Array.isArray(c.subs) && c.subs.length > 0 ? (
+                    c.subs.map((s, index) => <Badge key={s.id || s.name || index}>{s.name}</Badge>)
                   ) : (
                     <span className="text-sm text-muted-foreground">No subcategories</span>
                   )}
@@ -106,7 +123,7 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      <CategoryForm open={open} onOpenChange={setOpen} category={edit} />
+      <CategoryForm open={open} onOpenChange={setOpen} category={edit} onSuccess={loadCategories} />
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { db, seed } from "@/lib/db"
+import { createClient } from "@/lib/supabase/server"
+
+const supabase = createClient()
 
 function toSlug(s: string) {
   return (s || "")
@@ -12,42 +14,75 @@ function toSlug(s: string) {
 }
 
 export async function GET() {
-  // Ensure defaults (4 categories with subs) exist on first access
-  seed()
-  const { categories } = db()
-  return NextResponse.json({ items: categories, total: categories.length })
+  try {
+    const { data: categories, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      console.error("Error fetching categories:", error)
+      return NextResponse.json({ items: [], total: 0 })
+    }
+
+    return NextResponse.json({ items: categories || [], total: (categories || []).length })
+  } catch (error) {
+    console.error("Error in categories GET:", error)
+    return NextResponse.json({ items: [], total: 0 })
+  }
 }
 
 export async function POST(req: Request) {
-  seed()
-  const state = db()
-  const body = await req.json().catch(() => ({}))
+  try {
+    const body = await req.json().catch(() => ({}))
 
-  const name: string = (body.name || "").trim()
-  if (!name) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 })
+    const name: string = (body.name || "").trim()
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 })
+    }
+
+    let slug = body.slug || toSlug(name)
+
+    // Ensure unique slug
+    const { data: existingCategory } = await supabase.from("categories").select("slug").eq("slug", slug).single()
+
+    if (existingCategory) {
+      let i = 2
+      let uniqueSlug = `${slug}-${i}`
+      while (true) {
+        const { data: existing } = await supabase.from("categories").select("slug").eq("slug", uniqueSlug).single()
+
+        if (!existing) break
+        i++
+        uniqueSlug = `${slug}-${i}`
+      }
+      slug = uniqueSlug
+    }
+
+    const description: string = body.description || ""
+    const image_url: string = body.image_url || ""
+    const subs = Array.isArray(body.subs) ? body.subs : []
+
+    const { data: category, error } = await supabase
+      .from("categories")
+      .insert({
+        name,
+        slug,
+        description,
+        image_url,
+        subs,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error creating category:", error)
+      return NextResponse.json({ error: "Failed to create category" }, { status: 500 })
+    }
+
+    return NextResponse.json(category, { status: 201 })
+  } catch (error) {
+    console.error("Error in categories POST:", error)
+    return NextResponse.json({ error: "Failed to create category" }, { status: 500 })
   }
-
-  let slug = body.slug || toSlug(name)
-  // ensure unique slug
-  const existingSlugs = new Set(state.categories.map((c) => c.slug))
-  if (existingSlugs.has(slug)) {
-    let i = 2
-    while (existingSlugs.has(`${slug}-${i}`)) i++
-    slug = `${slug}-${i}`
-  }
-
-  const now = new Date().toISOString()
-  const subsInput: string[] = Array.isArray(body.subs) ? body.subs : []
-  const cat = {
-    id: crypto.randomUUID(),
-    name,
-    slug,
-    subs: subsInput.map((n) => ({ id: crypto.randomUUID(), name: String(n) })),
-    createdAt: now,
-    updatedAt: now,
-  }
-
-  state.categories.push(cat)
-  return NextResponse.json(cat, { status: 201 })
 }

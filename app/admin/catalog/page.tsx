@@ -5,10 +5,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Package, X } from "lucide-react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Category, Product } from "@/lib/types"
-import { ExtendedProductForm } from "@/components/admin/product-form-extended"
-import { DataTable } from "@/components/admin/products-table"
+import { ProductFormNew } from "@/components/admin/product-form-new"
+import { ProductsTableNew } from "@/components/admin/products-table-new"
 import { useToast } from "@/hooks/use-toast"
 import { QuickView } from "@/components/catalog/quick-view"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -24,6 +23,7 @@ async function fetchProducts(params: { search: string; category: string | null; 
   q.set("limit", "500")
   q.set("sort", "updatedAt")
   q.set("order", "desc")
+  q.set("includeInactive", "true")
   if (params.search) q.set("search", params.search)
   if (params.category) q.set("category", params.category)
   if (params.sub) q.set("sub", params.sub)
@@ -34,10 +34,10 @@ async function fetchProducts(params: { search: string; category: string | null; 
 
 export default function CatalogAdminPage() {
   const { toast } = useToast()
-  const qc = useQueryClient()
 
-  const { data: catData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories })
-  const cats = catData?.items ?? []
+  const [cats, setCats] = React.useState<Category[]>([])
+  const [items, setItems] = React.useState<Product[]>([])
+  const [prodLoading, setProdLoading] = React.useState(false)
 
   const [productSearch, setProductSearch] = React.useState("")
   const [catFilter, setCatFilter] = React.useState<string | null>(null)
@@ -49,25 +49,38 @@ export default function CatalogAdminPage() {
     return found?.subs ?? []
   }, [catFilter, cats])
 
-  const { data: prodData, isLoading: prodLoading } = useQuery({
-    queryKey: ["products-catalog", { productSearch, catFilter, subFilter }],
-    queryFn: () => fetchProducts({ search: productSearch, category: catFilter, sub: subFilter }),
-  })
-  const items = prodData?.items ?? []
+  React.useEffect(() => {
+    fetchCategories()
+      .then((data) => setCats(data.items))
+      .catch((error) => console.error("Failed to load categories:", error))
+  }, [])
 
-  const { mutate: deleteProduct } = useMutation({
-    mutationFn: async (id: string) => {
+  React.useEffect(() => {
+    setProdLoading(true)
+    fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+      .then((data) => {
+        setItems(data.items)
+        console.log("[v0] Loaded products:", data.items.length)
+      })
+      .catch((error) => console.error("Failed to load products:", error))
+      .finally(() => setProdLoading(false))
+  }, [productSearch, catFilter, subFilter])
+
+  const deleteProduct = async (id: string) => {
+    try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Delete failed")
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products-catalog"] })
+      // Reload products
+      const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+      setItems(data.items)
       toast({ title: "Product deleted" })
-    },
-  })
+    } catch (error) {
+      console.error("Delete failed:", error)
+    }
+  }
 
-  const { mutate: toggleStatus } = useMutation({
-    mutationFn: async (p: Product) => {
+  const toggleStatus = async (p: Product) => {
+    try {
       const next = p.status === "inactive" || p.status === "discontinued" ? "active" : "inactive"
       const res = await fetch(`/api/products/${p.id}`, {
         method: "PUT",
@@ -75,29 +88,31 @@ export default function CatalogAdminPage() {
         body: JSON.stringify({ status: next }),
       })
       if (!res.ok) throw new Error("Failed to update status")
-      return await res.json()
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products-catalog"] })
+      // Reload products
+      const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+      setItems(data.items)
       toast({ title: "Status updated" })
-    },
-  })
+    } catch (error) {
+      console.error("Status update failed:", error)
+    }
+  }
 
-  const { mutate: markDiscontinued } = useMutation({
-    mutationFn: async (p: Product) => {
+  const markDiscontinued = async (p: Product) => {
+    try {
       const res = await fetch(`/api/products/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "discontinued" }),
       })
       if (!res.ok) throw new Error("Failed to mark discontinued")
-      return await res.json()
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products-catalog"] })
+      // Reload products
+      const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+      setItems(data.items)
       toast({ title: "Marked discontinued" })
-    },
-  })
+    } catch (error) {
+      console.error("Mark discontinued failed:", error)
+    }
+  }
 
   const [openProduct, setOpenProduct] = React.useState(false)
   const [editProduct, setEditProduct] = React.useState<Product | null>(null)
@@ -114,17 +129,25 @@ export default function CatalogAdminPage() {
   const prevOpenRef = React.useRef(openProduct)
   React.useEffect(() => {
     if (prevOpenRef.current && !openProduct) {
-      qc.invalidateQueries({ queryKey: ["products-catalog"] })
+      // Reload products when form closes
+      fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+        .then((data) => setItems(data.items))
+        .catch((error) => console.error("Failed to reload products:", error))
       setDuplicateFrom(null)
     }
     prevOpenRef.current = openProduct
-  }, [openProduct, qc])
+  }, [openProduct, productSearch, catFilter, subFilter])
 
   React.useEffect(() => {
-    const onChanged = () => qc.invalidateQueries({ queryKey: ["products-catalog"] })
+    const onChanged = () => {
+      // Reload products when products change
+      fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+        .then((data) => setItems(data.items))
+        .catch((error) => console.error("Failed to reload products:", error))
+    }
     window.addEventListener("products:changed", onChanged as EventListener)
     return () => window.removeEventListener("products:changed", onChanged as EventListener)
-  }, [qc])
+  }, [productSearch, catFilter, subFilter])
 
   return (
     <div className="p-6">
@@ -211,9 +234,12 @@ export default function CatalogAdminPage() {
             <div className="flex justify-end">
               <Button
                 onClick={() => {
+                  console.log("[v0] New Product button clicked")
+                  console.log("[v0] Current openProduct state:", openProduct)
                   setDuplicateFrom(null)
                   setEditProduct(null)
                   setOpenProduct(true)
+                  console.log("[v0] Set openProduct to true")
                 }}
               >
                 <Plus className="mr-1 h-4 w-4" />
@@ -222,7 +248,7 @@ export default function CatalogAdminPage() {
             </div>
           </div>
 
-          <DataTable
+          <ProductsTableNew
             data={items}
             total={items.length}
             loading={prodLoading}
@@ -242,7 +268,7 @@ export default function CatalogAdminPage() {
             }}
           />
 
-          <ExtendedProductForm
+          <ProductFormNew
             open={openProduct}
             onOpenChange={setOpenProduct}
             product={editProduct}

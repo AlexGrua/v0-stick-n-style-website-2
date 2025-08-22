@@ -1,25 +1,10 @@
+import { SiteFooter } from "@/components/site-footer"
 import { HeroBlock } from "@/components/home/hero-block"
 import { AdvantagesBlock } from "@/components/home/advantages-block"
 import { ProductGalleryBlock } from "@/components/home/product-gallery-block"
 import { CooperationBlock } from "@/components/home/cooperation-block"
 import { CustomBlock } from "@/components/home/custom-block"
-import { SiteFooter } from "@/components/site-footer"
-import { db, seed } from "@/lib/db"
-
-async function getHomePageData() {
-  try {
-    const state = db()
-
-    if (!state.seeded) {
-      seed()
-    }
-
-    return state.homePage
-  } catch (error) {
-    console.error("Failed to load home page data:", error)
-    return null
-  }
-}
+import { getHomePageData } from "@/lib/db"
 
 export default async function HomePage() {
   const homePageData = await getHomePageData()
@@ -38,13 +23,19 @@ export default async function HomePage() {
     )
   }
 
-  const customBlocks = homePageData.customBlocks || []
+  const customBlocks = Array.isArray(homePageData.customBlocks) ? homePageData.customBlocks : []
+
+  const blockOrder = homePageData.blockOrder || ["hero", "advantages", "productGallery", "cooperation"]
+
+  const mainBlocks = blockOrder
+    .map((blockType, index) => {
+      const blockData = homePageData[blockType as keyof typeof homePageData]
+      return { type: blockType, data: blockData, order: index + 1 }
+    })
+    .filter((block) => block.data && typeof block.data === "object")
 
   const allBlocks = [
-    { type: "hero", data: homePageData.hero, order: 1 },
-    { type: "advantages", data: homePageData.advantages, order: 2 },
-    { type: "productGallery", data: homePageData.productGallery, order: 3 },
-    { type: "cooperation", data: homePageData.cooperation, order: 4 },
+    ...mainBlocks,
     ...customBlocks.map((block: any) => ({ type: "custom", data: block, order: block.order || 5 })),
   ].sort((a, b) => a.order - b.order)
 

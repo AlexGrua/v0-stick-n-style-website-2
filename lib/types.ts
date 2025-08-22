@@ -113,11 +113,26 @@ export type Supplier = {
   updatedAt: string
 }
 
+export type HeroButton = {
+  id: string
+  text: string
+  link: string
+  variant?: "primary" | "secondary"
+}
+
+export type HeroImage = {
+  id: string
+  url: string
+  alt: string
+}
+
 export type HeroBlockData = {
   title: string
   subtitle: string
   description: string
   backgroundImage: string
+  images?: string[] // упрощенный массив URL изображений для слайдера
+  buttons: HeroButton[]
   ctaText: string
   ctaLink: string
   visible: boolean
@@ -152,11 +167,41 @@ export type ProductGalleryBlockData = {
   visible: boolean
 }
 
+export type CooperationFeature = {
+  id: string
+  icon: string
+  title: string
+  description: string
+}
+
+export type CooperationButton = {
+  id: string
+  text: string
+  link: string
+  variant?: "primary" | "secondary"
+}
+
+export type CooperationOffer = {
+  id: string
+  text: string
+}
+
+export type CooperationStat = {
+  id: string
+  number: string
+  label: string
+}
+
 export type CooperationBlockData = {
   title: string
   subtitle: string
   description: string
   backgroundImage: string
+  uploadedImage?: string // добавлено поле для загруженного изображения
+  features: CooperationFeature[] // динамические преимущества сотрудничества
+  buttons: CooperationButton[] // динамические кнопки
+  offers?: CooperationOffer[] // добавлены динамические предложения партнерам
+  stats?: CooperationStat[] // добавлена динамическая статистика
   ctaText: string
   ctaLink: string
   visible: boolean
@@ -166,11 +211,14 @@ export type CustomBlockData = {
   id: string
   type: "custom"
   title: string
-  subtitle: string
-  description: string
-  backgroundImage: string
-  ctaText: string
-  ctaLink: string
+  subtitle?: string // сделано опциональным
+  description?: string // сделано опциональным
+  backgroundImage?: string // сделано опциональным
+  images?: string[] // добавлен массив изображений
+  buttons?: CooperationButton[] // добавлены кнопки
+  features?: CooperationFeature[] // добавлены преимущества
+  ctaText?: string // сделано опциональным
+  ctaLink?: string // сделано опциональным
   visible: boolean
   order: number
 }
@@ -181,5 +229,68 @@ export type HomePageData = {
   productGallery: ProductGalleryBlockData
   cooperation: CooperationBlockData
   customBlocks: CustomBlockData[]
+  blockOrder?: string[] // добавлено поле для порядка блоков
   updatedAt: string
+}
+
+export type CatalogLayoutSettings = {
+  productsPerRow: number // 2, 3, 4, 5
+  cardSize: "small" | "medium" | "large"
+  showFilters: boolean
+  showSearch: boolean
+  showCategories: boolean
+  showLeftPanel: boolean
+}
+
+export type CatalogFilterSettings = {
+  enableCategoryFilter: boolean
+  enableSubcategoryFilter: boolean
+  enableSearch: boolean
+  enableSorting: boolean
+  sortOptions: string[] // ["name", "newest", "popular"]
+}
+
+export type CatalogContentBlock = {
+  id: string
+  type: "hero" | "banner" | "text" | "image" | "cta"
+  title?: string
+  subtitle?: string
+  description?: string
+  image?: string
+  link?: string
+  buttonText?: string
+  position: "before_products" | "after_products"
+  visible: boolean
+  order: number
+}
+
+export type CatalogPageData = {
+  // Basic Settings
+  title: string
+  description: string
+  seoTitle: string
+  seoDescription: string
+
+  // Hero Section
+  heroTitle: string
+  heroSubtitle: string
+  heroImage?: string
+  showHero: boolean
+
+  // Layout Settings
+  layout: CatalogLayoutSettings
+
+  // Filter Settings
+  filters: CatalogFilterSettings
+
+  // Content Blocks
+  contentBlocks: CatalogContentBlock[]
+
+  // Featured Categories
+  featuredCategories: string[]
+
+  // Display Settings
+  showProductCount: boolean
+  showPagination: boolean
+  productsPerPage: number
 }

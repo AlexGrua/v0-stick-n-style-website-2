@@ -1,16 +1,22 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-async function fetchStats() {
+type StatsData = { total: number; active: number; inactive: number; discontinued: number }
+
+async function fetchStats(): Promise<StatsData> {
   const res = await fetch("/api/products/stats")
   if (!res.ok) throw new Error("Failed to load stats")
-  return (await res.json()) as { total: number; active: number; inactive: number; discontinued: number }
+  return await res.json()
 }
 
 export default function Page() {
-  const { data } = useQuery({ queryKey: ["product-stats"], queryFn: fetchStats })
+  const [data, setData] = useState<StatsData | null>(null)
+
+  useEffect(() => {
+    fetchStats().then(setData).catch(console.error)
+  }, [])
 
   return (
     <div className="p-6">

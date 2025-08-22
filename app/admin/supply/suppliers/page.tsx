@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowUpDown, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2, Copy, Plus } from "lucide-react"
+import { ArrowUpDown, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2, Copy, Plus } from 'lucide-react'
 import type { Supplier, SupplierStatus } from "@/lib/suppliers-store"
 import type { Category } from "@/lib/types"
 import { SupplierForm } from "@/components/admin/supplier-form"
@@ -20,7 +20,22 @@ async function loadSuppliers(params: { search?: string; status?: SupplierStatus 
   if (params.status && params.status !== "all") q.set("status", params.status)
   const res = await fetch(`/api/suppliers?${q.toString()}`, { cache: "no-store" })
   if (!res.ok) throw new Error("Failed to load suppliers")
-  return (await res.json()) as { items: Supplier[]; total: number }
+  const data = await res.json()
+  
+  const mappedItems = (data.items || []).map((item: any) => ({
+    id: item.id,
+    shortName: item.short_name || item.shortName,
+    companyName: item.company_name || item.companyName,
+    contactPerson: item.contact_person || item.contactPerson,
+    contactEmail: item.contact_email || item.contactEmail,
+    contactPhone: item.contact_phone || item.contactPhone,
+    messenger: item.messenger,
+    website: item.website,
+    categories: item.categories || [],
+    status: item.status
+  }))
+  
+  return { items: mappedItems, total: data.total }
 }
 
 async function loadCategories() {

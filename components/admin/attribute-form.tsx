@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { Attribute, AttributeType, Category } from "@/lib/types"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { X } from "lucide-react"
 
 const schema = z.object({
@@ -41,9 +40,15 @@ export function AttributeForm({
   open,
   onOpenChange,
   attribute,
-}: { open: boolean; onOpenChange: (v: boolean) => void; attribute: Attribute | null }) {
-  const qc = useQueryClient()
-  const { data: catData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories })
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  attribute: Attribute | null
+  onSuccess?: () => void
+}) {
+  const [catData, setCatData] = useState<{ items: Category[] } | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const cats = catData?.items ?? []
 
   const form = useForm<FormValues>({
@@ -58,6 +63,21 @@ export function AttributeForm({
       categoryIds: [],
     },
   })
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const result = await fetchCategories()
+        setCatData(result)
+      } catch (error) {
+        console.error("Failed to load categories:", error)
+      }
+    }
+
+    if (open) {
+      loadCategories()
+    }
+  }, [open])
 
   useEffect(() => {
     if (attribute) {
@@ -89,8 +109,9 @@ export function AttributeForm({
     }
   }, [attribute])
 
-  const mut = useMutation({
-    mutationFn: async (values: FormValues) => {
+  const handleSave = async (values: FormValues) => {
+    try {
+      setIsSaving(true)
       const method = values.id ? "PUT" : "POST"
       const url = values.id ? `/api/attributes/${values.id}` : "/api/attributes"
       const res = await fetch(url, {
@@ -99,13 +120,15 @@ export function AttributeForm({
         body: JSON.stringify(values),
       })
       if (!res.ok) throw new Error("Save failed")
-      return await res.json()
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attributes"] })
+
+      onSuccess?.()
       onOpenChange(false)
-    },
-  })
+    } catch (error) {
+      console.error("Save failed:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const opts = form.watch("options")
   const type = form.watch("type")
@@ -117,7 +140,7 @@ export function AttributeForm({
           <DialogTitle>{attribute ? "Edit Attribute" : "New Attribute"}</DialogTitle>
         </DialogHeader>
 
-        <form className="grid gap-4" onSubmit={form.handleSubmit((v) => mut.mutate(v))}>
+        <form className="grid gap-4" onSubmit={form.handleSubmit(handleSave)}>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Name</Label>
@@ -245,7 +268,7 @@ export function AttributeForm({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mut.isPending}>
+            <Button type="submit" disabled={isSaving}>
               Save
             </Button>
           </div>

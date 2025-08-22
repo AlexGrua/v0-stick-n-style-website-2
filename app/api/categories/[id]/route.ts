@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { db, seed } from "@/lib/db"
+import { getCategoryById, updateCategory, deleteCategory } from "@/lib/db"
 
 function toSlug(s: string) {
   return (s || "")
@@ -11,52 +11,86 @@ function toSlug(s: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+function generateUUID() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback UUID generation
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c == "x" ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  seed()
-  const { categories } = db()
-  const item = categories.find((c) => c.id === params.id)
-  if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  return NextResponse.json(item)
+  try {
+    console.log("[v0] Getting category with ID:", params.id)
+    const category = await getCategoryById(params.id)
+    if (!category) {
+      console.log("[v0] Category not found:", params.id)
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+    console.log("[v0] Category found:", category)
+    return NextResponse.json(category)
+  } catch (error) {
+    console.error("[v0] Error fetching category:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  seed()
-  const state = db()
-  const idx = state.categories.findIndex((c) => c.id === params.id)
-  if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  try {
+    console.log("[v0] Starting PUT request for category ID:", params.id)
 
-  const patch = await req.json().catch(() => ({}))
-  const now = new Date().toISOString()
+    const patch = await req.json().catch((err) => {
+      console.error("[v0] Error parsing JSON:", err)
+      return {}
+    })
+    console.log("[v0] Received patch data:", patch)
 
-  const next = { ...state.categories[idx], ...patch, updatedAt: now }
-
-  // If name changed and slug not explicitly provided, update slug
-  if (patch?.name && !patch?.slug) {
-    const base = toSlug(String(patch.name))
-    const existingSlugs = new Set(state.categories.filter((_, i) => i !== idx).map((c) => c.slug))
-    let slug = base
-    if (existingSlugs.has(slug)) {
-      let i = 2
-      while (existingSlugs.has(`${slug}-${i}`)) i++
-      slug = `${slug}-${i}`
+    if (patch?.name && !patch?.slug) {
+      patch.slug = toSlug(String(patch.name))
+      console.log("[v0] Generated slug:", patch.slug)
     }
-    next.slug = slug
-  }
 
-  // Normalize subs if provided as array of strings
-  if (Array.isArray(patch?.subs)) {
-    next.subs = patch.subs.map((s: any) => (typeof s === "string" ? { id: crypto.randomUUID(), name: s } : s))
-  }
+    if (Array.isArray(patch?.subs)) {
+      console.log("[v0] Processing subs array:", patch.subs)
+      patch.subs = patch.subs.map((s: any) => {
+        if (typeof s === "string") {
+          return { id: generateUUID(), name: s }
+        }
+        if (typeof s === "object" && s.name && !s.id) {
+          return { ...s, id: generateUUID() }
+        }
+        return s
+      })
+      console.log("[v0] Processed subs:", patch.subs)
+    }
 
-  state.categories[idx] = next
-  return NextResponse.json(state.categories[idx])
+    console.log("[v0] Calling updateCategory with:", params.id, patch)
+    const updatedCategory = await updateCategory(params.id, patch)
+    console.log("[v0] Category updated successfully:", updatedCategory)
+
+    return NextResponse.json(updatedCategory)
+  } catch (error) {
+    console.error("[v0] Error updating category:", error)
+    console.error("[v0] Error stack:", error instanceof Error ? error.stack : "No stack trace")
+    return NextResponse.json({ error: "Failed to update category" }, { status: 500 })
+  }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  seed()
-  const state = db()
-  const idx = state.categories.findIndex((c) => c.id === params.id)
-  if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  state.categories.splice(idx, 1)
-  return new NextResponse(null, { status: 204 })
+  try {
+    const success = await deleteCategory(params.id)
+
+    if (!success) {
+      return NextResponse.json({ error: "Failed to delete category" }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[v0] Error deleting category:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }

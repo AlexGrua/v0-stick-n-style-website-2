@@ -2,95 +2,97 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
-type LangCode = "en" | "es" | "ru" | "cn"
-
-const LANGS: { code: LangCode; short: string; native: string }[] = [
-  { code: "en", short: "ENG", native: "English" },
-  { code: "es", short: "ESP", native: "Español" },
-  { code: "ru", short: "РУС", native: "Русский" },
-  { code: "cn", short: "中文", native: "中文" },
-]
-
-// Map to your crisp puzzle SVGs
-const PUZZLE_SRC: Record<LangCode, string> = {
-  en: "/images/lang/puzzle-flag-english.svg",
-  es: "/images/lang/puzzle-flag-spanish.svg",
-  ru: "/images/lang/puzzle-flag-russian.svg",
-  cn: "/images/lang/puzzle-flag-chinese.svg",
+type Language = {
+  id: string
+  code: string
+  name: string
+  native_name: string
+  flag_icon: string
+  is_active: boolean
+  is_default: boolean
 }
 
-// Persist language (cookie + localStorage)
-function getInitialLang(): LangCode {
-  if (typeof document !== "undefined") {
-    const m = document.cookie.match(/(?:^|; )lang=([^;]+)/)
-    if (m) {
-      const v = decodeURIComponent(m[1])
-      if (v === "en" || v === "es" || v === "ru" || v === "cn") return v
-    }
-  }
-  if (typeof window !== "undefined") {
-    const v = window.localStorage.getItem("lang")
-    if (v === "en" || v === "es" || v === "ru" || v === "cn") return v as LangCode
-  }
+function getInitialLang() {
+  // Placeholder function to get initial language
   return "en"
 }
-function setLang(code: LangCode) {
-  if (typeof document !== "undefined") {
-    document.cookie = `lang=${encodeURIComponent(code)}; path=/; max-age=31536000; samesite=lax`
-  }
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem("lang", code)
-  }
+
+function setLang(code: string) {
+  // Placeholder function to set language
+  console.log("Setting language to:", code)
 }
 
-function PuzzleImg({
-  code,
-  size = 60,
-  className,
+function FlagIcon({
+  flag_icon,
   alt,
+  size = 24,
+  className,
 }: {
-  code: LangCode
+  flag_icon: string
+  alt: string
   size?: number
   className?: string
-  alt?: string
 }) {
-  const src = PUZZLE_SRC[code]
+  // Check if it's a file path (SVG)
+  if (flag_icon.startsWith("/") || flag_icon.includes(".svg") || flag_icon.includes(".png")) {
+    return (
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-full border-2 border-white shadow-lg ring-2 ring-gray-100 hover:ring-lime-400 transition-all duration-200",
+          className,
+        )}
+        style={{ width: size, height: size }}
+      >
+        <Image
+          src={flag_icon || "/placeholder.svg"}
+          alt={alt}
+          width={size}
+          height={size}
+          className="object-cover"
+          onError={(e) => {
+            // Fallback to gradient with country code if image fails to load
+            const target = e.target as HTMLImageElement
+            target.style.display = "none"
+            const parent = target.parentElement
+            if (parent) {
+              const countryCode = alt.split(" ")[0].toUpperCase().slice(0, 2)
+              parent.innerHTML = `
+                <div class="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 flex items-center justify-center">
+                  <span class="text-white font-bold text-xs">${countryCode}</span>
+                </div>
+              `
+            }
+          }}
+        />
+      </div>
+    )
+  }
+
+  // Emoji flag with modern circular container
   return (
-    <img
-      src={src || "/placeholder.svg"}
-      alt={alt ?? code}
-      width={size}
-      height={size}
-      decoding="async"
-      loading="eager"
-      draggable={false}
-      className={cn("block select-none pointer-events-none", className)}
-      style={{
-        width: size,
-        height: size,
-        imageRendering: "auto",
-      }}
-    />
+    <div
+      className={cn(
+        "flex items-center justify-center rounded-full border-2 border-white shadow-lg ring-2 ring-gray-100 hover:ring-lime-400 transition-all duration-200 bg-gradient-to-br from-gray-50 to-gray-100",
+        className,
+      )}
+      style={{ width: size, height: size }}
+    >
+      <span style={{ fontSize: `${size * 0.6}px`, lineHeight: 1 }}>{flag_icon || "🌐"}</span>
+    </div>
   )
 }
 
 export function LanguageSwitcher({
   mode = "menu",
   className,
-  puzzleSize = 60, // header puzzle size inside 64x64 ghost button
-  dropdownIconSize = 48,
-  listIconSize = 48,
+  puzzleSize = 40,
+  dropdownIconSize = 32,
+  listIconSize = 28,
 }: {
   mode?: "menu" | "list"
   className?: string
@@ -98,36 +100,85 @@ export function LanguageSwitcher({
   dropdownIconSize?: number
   listIconSize?: number
 }) {
-  const [lang, setLangState] = React.useState<LangCode>(getInitialLang)
+  const [languages, setLanguages] = React.useState<Language[]>([])
+  const [lang, setLangState] = React.useState<string>(getInitialLang())
+  const [loading, setLoading] = React.useState(true)
 
-  const apply = (code: LangCode) => {
+  React.useEffect(() => {
+    const loadLanguages = async () => {
+      try {
+        console.log("[v0] Loading languages for switcher...")
+        const response = await fetch("/api/languages")
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          const activeLanguages = result.data.filter((lang: Language) => lang.is_active)
+          setLanguages(activeLanguages)
+          console.log("[v0] Active languages loaded:", activeLanguages.length)
+
+          // Set default language if current lang is not available
+          const currentLangExists = activeLanguages.some((l: Language) => l.code === lang)
+          if (!currentLangExists) {
+            const defaultLang = activeLanguages.find((l: Language) => l.is_default) || activeLanguages[0]
+            if (defaultLang) {
+              setLangState(defaultLang.code)
+              setLang(defaultLang.code)
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[v0] Error loading languages:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadLanguages()
+  }, [lang])
+
+  const apply = (code: string) => {
     setLang(code)
     setLangState(code)
+    console.log("[v0] Language switched to:", code)
+  }
+
+  if (loading) {
+    return (
+      <Button variant="ghost" size="icon" className={cn("h-16 w-16 p-0", className)} disabled>
+        <FlagIcon flag_icon="🌐" alt="Loading" size={puzzleSize} />
+      </Button>
+    )
+  }
+
+  if (languages.length === 0) {
+    return null // Don't show switcher if no languages available
   }
 
   if (mode === "list") {
-    // Mobile inline selector
     return (
-      <div className={cn("space-y-3", className)}>
-        <div className="text-sm font-medium">Language</div>
-        <RadioGroup value={lang} onValueChange={(v) => apply(v as LangCode)} className="grid grid-cols-2 gap-3">
-          {LANGS.map((l) => (
+      <div className={cn("space-y-4", className)}>
+        <div className="text-sm font-semibold text-gray-700">Choose Language</div>
+        <RadioGroup value={lang} onValueChange={(v) => apply(v)} className="grid grid-cols-1 gap-3">
+          {languages.map((l) => (
             <label
-              key={l.code}
+              key={l.id}
               htmlFor={`lang-${l.code}`}
               className={cn(
-                "flex cursor-pointer items-center gap-3 rounded-md border bg-white px-3 py-2",
-                l.code === lang && "border-foreground/30",
+                "flex cursor-pointer items-center gap-4 rounded-xl border-2 bg-white px-4 py-3 hover:bg-gray-50 hover:border-lime-300 transition-all duration-200 shadow-sm",
+                l.code === lang && "border-lime-500 bg-lime-50 shadow-md",
               )}
             >
-              <PuzzleImg code={l.code} size={listIconSize} alt={l.native} />
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tabular-nums">{l.short}</span>
-                <span className="text-sm text-muted-foreground">{l.native}</span>
+              <FlagIcon flag_icon={l.flag_icon} alt={`${l.name} flag`} size={listIconSize} />
+              <div className="flex flex-col gap-1 flex-1">
+                <span className="text-sm font-bold text-gray-900">{l.name}</span>
+                <span className="text-xs text-gray-500">{l.native_name}</span>
               </div>
-              <span className="ml-auto">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded-md">
+                  {l.code.toUpperCase()}
+                </span>
                 <RadioGroupItem id={`lang-${l.code}`} value={l.code} />
-              </span>
+              </div>
             </label>
           ))}
         </RadioGroup>
@@ -135,32 +186,50 @@ export function LanguageSwitcher({
     )
   }
 
-  const current = LANGS.find((l) => l.code === lang) ?? LANGS[0]
+  const current = languages.find((l) => l.code === lang) || languages[0]
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* 64×64 ghost button like neighbors; puzzle image draws at full 60px (max) */}
-        <Button variant="ghost" size="icon" aria-label="Change language" className={cn("h-16 w-16 p-0", className)}>
-          <PuzzleImg code={lang} size={puzzleSize} alt={current.native} />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Change language"
+          className={cn(
+            "h-16 w-16 p-0 hover:bg-lime-50 hover:scale-105 transition-all duration-200 rounded-full",
+            className,
+          )}
+        >
+          <FlagIcon
+            flag_icon={current?.flag_icon || "🌐"}
+            alt={`${current?.name || "Language"} flag`}
+            size={puzzleSize}
+          />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel>Language</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {LANGS.map((l) => (
-          <DropdownMenuItem
-            key={l.code}
-            onClick={() => apply(l.code)}
-            className={cn("flex items-center gap-3", lang === l.code && "bg-muted")}
-          >
-            <PuzzleImg code={l.code} size={dropdownIconSize} alt={l.native} />
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="text-sm font-semibold">{l.short}</span>
-              <span className="truncate text-sm text-muted-foreground">{l.native}</span>
-            </div>
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent align="end" className="w-52 p-2 shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+        <div className="space-y-1 py-1">
+          {languages.map((l) => (
+            <DropdownMenuItem
+              key={l.id}
+              onClick={() => apply(l.code)}
+              className={cn(
+                "flex items-center gap-3 p-2 rounded-lg hover:bg-lime-50 transition-all duration-200 cursor-pointer",
+                lang === l.code && "bg-lime-100 border-2 border-lime-400 shadow-sm",
+              )}
+            >
+              <FlagIcon flag_icon={l.flag_icon} alt={`${l.name} flag`} size={24} />
+              <div className="flex flex-col gap-0.5 flex-1">
+                <span className="font-semibold text-sm text-gray-900">{l.name}</span>
+                <span className="text-xs text-gray-500">{l.native_name}</span>
+              </div>
+              <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                {l.code.toUpperCase()}
+              </span>
+              {lang === l.code && <div className="w-1.5 h-1.5 bg-lime-500 rounded-full animate-pulse"></div>}
+            </DropdownMenuItem>
+          ))}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

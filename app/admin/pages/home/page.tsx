@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,10 +10,10 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Upload, Eye, EyeOff, MoveUp, MoveDown, Edit2, Check, X } from "lucide-react"
+import { Plus, Trash2, Upload, Eye, EyeOff, MoveUp, MoveDown, X, Save, Loader2, Check, Edit2 } from "lucide-react"
 import { useHomePageData } from "@/hooks/use-home-page-data"
 import { useAutoSave } from "@/hooks/use-auto-save"
-import type { HomePageData, Category, CustomBlockData } from "@/lib/types"
+import type { HomePageData, Category } from "@/lib/types"
 
 export default function HomePageAdmin() {
   const { data, loading, saving, saveBlock, saveAll, setData } = useHomePageData()
@@ -22,13 +22,27 @@ export default function HomePageAdmin() {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [editingBlockName, setEditingBlockName] = useState("")
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [safeCooperationFeatures, setSafeCooperationFeatures] = useState([])
+  const [safeCooperationButtons, setSafeCooperationButtons] = useState([])
+  const [isCreatingBlock, setIsCreatingBlock] = useState(false)
+  const [debouncedSave, setDebouncedSave] = useState<NodeJS.Timeout | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const safeData = data || {
+  const defaultData: HomePageData = {
     hero: {
       title: "Stick'N'Style",
       subtitle: "Премиальные отделочные материалы",
       description: "Создайте уникальный интерьер с нашими инновационными решениями для стен и полов",
       backgroundImage: "/modern-interior-3d-panels.png",
+      images: [],
+      buttons: [
+        {
+          id: "1",
+          text: "Смотреть каталог",
+          link: "/catalog",
+          variant: "primary",
+        },
+      ],
       ctaText: "Смотреть каталог",
       ctaLink: "/catalog",
       visible: true,
@@ -50,14 +64,78 @@ export default function HomePageAdmin() {
       subtitle: "Работаем с профессионалами",
       description: "Специальные условия для дизайнеров, архитекторов и строительных компаний",
       backgroundImage: "/fabric-texture-wall-panels.png",
+      uploadedImage: "",
       ctaText: "Стать партнером",
       ctaLink: "/partnership",
       visible: true,
+      features: [],
+      buttons: [],
+      offers: [],
+      stats: [],
     },
     customBlocks: [],
     blockOrder: ["hero", "advantages", "productGallery", "cooperation"],
     updatedAt: new Date().toISOString(),
   }
+
+  const safeData = data || defaultData
+  const safeAdvantages = Array.isArray(safeData.advantages?.advantages) ? safeData.advantages.advantages : []
+  const safeProducts = Array.isArray(safeData.productGallery?.products) ? safeData.productGallery.products : []
+  const safeCustomBlocks = Array.isArray(safeData.customBlocks) ? safeData.customBlocks : []
+  const safeBlockOrder = Array.isArray(safeData.blockOrder)
+    ? safeData.blockOrder
+    : ["hero", "advantages", "productGallery", "cooperation"]
+
+  const debouncedUpdateField = useCallback(
+    (blockType: string, field: string, value: any) => {
+      if (debouncedSave) {
+        clearTimeout(debouncedSave)
+      }
+
+      const timer = setTimeout(() => {
+        updateField(blockType, field, value)
+      }, 500)
+
+      setDebouncedSave(timer)
+    },
+    [debouncedSave],
+  )
+
+  const uploadImage = useCallback(async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const dataUrl = reader.result as string
+
+        try {
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              image: dataUrl,
+              filename: file.name,
+            }),
+          })
+
+          if (!response.ok) {
+            console.error("[v0] Upload failed:", await response.text())
+            reject(new Error("Upload failed"))
+            return
+          }
+
+          const { url: permanentUrl } = await response.json()
+          resolve(permanentUrl)
+        } catch (error) {
+          console.error("[v0] Image upload error:", error)
+          reject(error)
+        }
+      }
+      reader.onerror = () => {
+        reject(new Error("Failed to read file"))
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [])
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -73,6 +151,19 @@ export default function HomePageAdmin() {
     }
     loadCategories()
   }, [])
+
+  useEffect(() => {
+    const currentFeatures = safeData.cooperation?.features || []
+    const currentButtons = safeData.cooperation?.buttons || []
+
+    if (JSON.stringify(currentFeatures) !== JSON.stringify(safeCooperationFeatures)) {
+      setSafeCooperationFeatures(currentFeatures)
+    }
+
+    if (JSON.stringify(currentButtons) !== JSON.stringify(safeCooperationButtons)) {
+      setSafeCooperationButtons(currentButtons)
+    }
+  }, [safeData.cooperation?.features, safeData.cooperation?.buttons, safeCooperationFeatures, safeCooperationButtons])
 
   useAutoSave(safeData?.hero, (heroData) => {
     if (heroData) saveBlock("hero", heroData)
@@ -98,41 +189,91 @@ export default function HomePageAdmin() {
     return <div className="flex items-center justify-center h-64">Загрузка...</div>
   }
 
-  const createNewBlock = () => {
-    const newBlock: CustomBlockData = {
-      id: crypto.randomUUID(),
-      type: "custom",
-      title: "Новый блок",
-      subtitle: "Подзаголовок блока",
-      description: "Описание нового блока. Расскажите о ваших услугах или преимуществах.",
+  const updateField = (blockType: keyof HomePageData, field: string, value: any) => {
+    const updatedData = {
+      ...safeData,
+      [blockType]: {
+        ...safeData[blockType],
+        [field]: value,
+      },
+    }
+    setData(updatedData)
+  }
+
+  const addHeroImage = async () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          const uploadedUrl = await uploadImage(file)
+          const currentImages = safeData.hero.images || []
+          updateField("hero", "images", [...currentImages, uploadedUrl])
+          console.log("[v0] Image added to hero slider")
+        } catch (error) {
+          console.error("[v0] Error uploading hero image:", error)
+        }
+      }
+    }
+    input.click()
+  }
+
+  const removeHeroImage = (index: number) => {
+    const currentImages = safeData.hero.images || []
+    const updatedImages = currentImages.filter((_, i) => i !== index)
+    updateField("hero", "images", updatedImages)
+    console.log("[v0] Image removed from hero slider")
+  }
+
+  const uploadCooperationImage = async () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          const uploadedUrl = await uploadImage(file)
+          updateField("cooperation", "uploadedImage", uploadedUrl)
+          console.log("[v0] Image uploaded for cooperation block")
+        } catch (error) {
+          console.error("[v0] Error uploading cooperation image:", error)
+        }
+      }
+    }
+    input.click()
+  }
+
+  const addCustomBlock = async () => {
+    setIsCreatingBlock(true)
+
+    const newBlock = {
+      id: `custom-${Date.now()}`,
+      type: "custom" as const,
+      title: `Новый блок ${safeCustomBlocks.length + 1}`,
+      subtitle: "Описание нового блока",
+      description: "Подробное описание функционала блока",
       backgroundImage: "/fabric-texture-wall-panels.png",
-      ctaText: "Узнать больше",
-      ctaLink: "/contact",
+      images: [],
+      buttons: [],
+      features: [],
       visible: true,
-      order: safeData.customBlocks.length + 5, // Start after main blocks (1-4)
+      order: safeCustomBlocks.length + 5,
     }
 
     const updatedData = {
       ...safeData,
-      customBlocks: [...safeData.customBlocks, newBlock],
+      customBlocks: [...safeCustomBlocks, newBlock],
     }
-    setData(updatedData)
-  }
 
-  const removeCustomBlock = (id: string) => {
-    const updatedData = {
-      ...safeData,
-      customBlocks: safeData.customBlocks.filter((block) => block.id !== id),
-    }
     setData(updatedData)
-  }
 
-  const updateCustomBlock = (id: string, field: string, value: any) => {
-    const updatedData = {
-      ...safeData,
-      customBlocks: safeData.customBlocks.map((block) => (block.id === id ? { ...block, [field]: value } : block)),
-    }
-    setData(updatedData)
+    setTimeout(() => {
+      startEditingBlockName(newBlock.id, newBlock.title)
+      setIsCreatingBlock(false)
+    }, 100)
   }
 
   const startEditingBlockName = (blockId: string, currentName: string) => {
@@ -143,104 +284,41 @@ export default function HomePageAdmin() {
   const saveBlockName = (blockId: string) => {
     if (editingBlockName.trim()) {
       updateCustomBlock(blockId, "title", editingBlockName.trim())
-      // Принудительно обновляем состояние для перерендера табов
-      const updatedBlocks = safeData.customBlocks.map((block) =>
-        block.id === blockId ? { ...block, title: editingBlockName.trim() } : block,
-      )
-      const updatedData = {
-        ...safeData,
-        customBlocks: updatedBlocks,
-      }
-      setData(updatedData)
+      console.log("[v0] Block name updated:", editingBlockName.trim())
     }
     setEditingBlockId(null)
     setEditingBlockName("")
   }
 
-  const cancelEditingBlockName = () => {
-    setEditingBlockId(null)
-    setEditingBlockName("")
-  }
-
-  const moveCustomBlock = (id: string, direction: "up" | "down") => {
-    const blocks = [...safeData.customBlocks]
-    const index = blocks.findIndex((block) => block.id === id)
-
-    if (index === -1) return
-
-    if (direction === "up" && index > 0) {
-      ;[blocks[index], blocks[index - 1]] = [blocks[index - 1], blocks[index]]
-    } else if (direction === "down" && index < blocks.length - 1) {
-      ;[blocks[index], blocks[index + 1]] = [blocks[index + 1], blocks[index]]
-    }
-
-    // Update order values
-    blocks.forEach((block, idx) => {
-      block.order = idx + 5 // Start after main blocks
-    })
-
+  const updateCustomBlock = (id: string, field: string, value: any) => {
     const updatedData = {
       ...safeData,
-      customBlocks: blocks,
+      customBlocks: safeCustomBlocks.map((block) => (block.id === id ? { ...block, [field]: value } : block)),
     }
     setData(updatedData)
   }
 
-  const moveMainBlock = (blockType: string, direction: "up" | "down") => {
-    console.log("[v0] Moving main block:", blockType, direction)
-
-    const mainBlocks = ["hero", "advantages", "productGallery", "cooperation"]
-    const currentOrder = safeData.blockOrder || mainBlocks
-    const index = currentOrder.indexOf(blockType === "gallery" ? "productGallery" : blockType)
-
-    if (index === -1) return
-
-    const newOrder = [...currentOrder]
-
-    if (direction === "up" && index > 0) {
-      ;[newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]
-    } else if (direction === "down" && index < newOrder.length - 1) {
-      ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
-    }
-
-    const updatedData = {
-      ...safeData,
-      blockOrder: newOrder,
-    }
-    setData(updatedData)
-  }
-
-  const handleImageUpload = async (blockType: string, field: string, blockId?: string) => {
+  const addCustomBlockImage = async (blockId: string) => {
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "image/*"
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
-        // Create a blob URL for immediate preview
-        const imageUrl = URL.createObjectURL(file)
-
-        // Update the data immediately
-        const updatedData = { ...safeData }
-        if (blockType === "hero") {
-          updatedData.hero = { ...updatedData.hero, [field]: imageUrl }
-        } else if (blockType === "cooperation") {
-          updatedData.cooperation = { ...updatedData.cooperation, [field]: imageUrl }
-        } else if (blockType === "custom" && blockId) {
-          updatedData.customBlocks = updatedData.customBlocks.map((block) =>
-            block.id === blockId ? { ...block, [field]: imageUrl } : block,
-          )
-        } else if (blockType === "product" && blockId) {
-          updatedData.productGallery = {
-            ...updatedData.productGallery,
-            products: updatedData.productGallery.products.map((product) =>
-              product.id === blockId ? { ...product, image: imageUrl } : product,
-            ),
-          }
+        try {
+          const uploadedUrl = await uploadImage(file)
+          const updatedBlocks = safeCustomBlocks.map((block) => {
+            if (block.id === blockId) {
+              const currentImages = block.images || []
+              return { ...block, images: [...currentImages, uploadedUrl] }
+            }
+            return block
+          })
+          updateField("customBlocks", "", updatedBlocks)
+          console.log("[v0] Image added to custom block")
+        } catch (error) {
+          console.error("[v0] Error uploading custom block image:", error)
         }
-        setData(updatedData)
-
-        console.log("[v0] Image uploaded for", blockType, field)
       }
     }
     input.click()
@@ -257,7 +335,7 @@ export default function HomePageAdmin() {
       ...safeData,
       advantages: {
         ...safeData.advantages,
-        advantages: [...safeData.advantages.advantages, newAdvantage],
+        advantages: [...safeAdvantages, newAdvantage],
       },
     }
     setData(updatedData)
@@ -268,7 +346,18 @@ export default function HomePageAdmin() {
       ...safeData,
       advantages: {
         ...safeData.advantages,
-        advantages: safeData.advantages.advantages.filter((item) => item.id !== id),
+        advantages: safeAdvantages.filter((item) => item.id !== id),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const updateAdvantage = (id: string, field: string, value: string) => {
+    const updatedData = {
+      ...safeData,
+      advantages: {
+        ...safeData.advantages,
+        advantages: safeAdvantages.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
       },
     }
     setData(updatedData)
@@ -286,7 +375,7 @@ export default function HomePageAdmin() {
       ...safeData,
       productGallery: {
         ...safeData.productGallery,
-        products: [...safeData.productGallery.products, newProduct],
+        products: [...safeProducts, newProduct],
       },
     }
     setData(updatedData)
@@ -297,29 +386,7 @@ export default function HomePageAdmin() {
       ...safeData,
       productGallery: {
         ...safeData.productGallery,
-        products: safeData.productGallery.products.filter((item) => item.id !== id),
-      },
-    }
-    setData(updatedData)
-  }
-
-  const updateField = (blockType: keyof HomePageData, field: string, value: any) => {
-    const updatedData = {
-      ...safeData,
-      [blockType]: {
-        ...safeData[blockType],
-        [field]: value,
-      },
-    }
-    setData(updatedData)
-  }
-
-  const updateAdvantage = (id: string, field: string, value: string) => {
-    const updatedData = {
-      ...safeData,
-      advantages: {
-        ...safeData.advantages,
-        advantages: safeData.advantages.advantages.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+        products: safeProducts.filter((item) => item.id !== id),
       },
     }
     setData(updatedData)
@@ -330,10 +397,9 @@ export default function HomePageAdmin() {
       ...safeData,
       productGallery: {
         ...safeData.productGallery,
-        products: safeData.productGallery.products.map((item) => {
+        products: safeProducts.map((item) => {
           if (item.id === id) {
             const updated = { ...item, [field]: value }
-            // Auto-update link when category changes
             if (field === "category") {
               updated.link = `/catalog/${value}`
             }
@@ -346,23 +412,271 @@ export default function HomePageAdmin() {
     setData(updatedData)
   }
 
-  const handlePreview = () => {
-    window.open("/", "_blank")
+  const handleImageUpload = async (blockType: string, field: string, blockId?: string) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          const reader = new FileReader()
+          reader.onload = async () => {
+            const dataUrl = reader.result as string
+
+            const response = await fetch("/api/upload", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                image: dataUrl,
+                filename: file.name,
+              }),
+            })
+
+            if (!response.ok) {
+              console.error("[v0] Upload failed:", await response.text())
+              return
+            }
+
+            const { url: permanentUrl } = await response.json()
+
+            const updatedData = { ...safeData }
+            if (blockType === "hero") {
+              updatedData.hero = { ...updatedData.hero, [field]: permanentUrl }
+            } else if (blockType === "cooperation") {
+              updatedData.cooperation = { ...updatedData.cooperation, [field]: permanentUrl }
+            } else if (blockType === "custom" && blockId) {
+              updatedData.customBlocks = updatedData.customBlocks.map((block) =>
+                block.id === blockId ? { ...block, [field]: permanentUrl } : block,
+              )
+            } else if (blockType === "product" && blockId) {
+              updatedData.productGallery = {
+                ...updatedData.productGallery,
+                products: updatedData.productGallery.products.map((product) =>
+                  product.id === blockId ? { ...product, image: permanentUrl } : product,
+                ),
+              }
+            }
+            setData(updatedData)
+
+            console.log("[v0] Image uploaded for", blockType, field)
+          }
+          reader.readAsDataURL(file)
+        } catch (error) {
+          console.error("[v0] Image upload error:", error)
+        }
+      }
+    }
+    input.click()
   }
 
-  const handleSave = async () => {
+  const addHeroButton = () => {
+    const newButton = {
+      id: crypto.randomUUID(),
+      text: "Новая кнопка",
+      link: "/",
+      variant: "secondary" as const,
+    }
+
+    const currentButtons = safeData.hero.buttons || []
+    const updatedData = {
+      ...safeData,
+      hero: {
+        ...safeData.hero,
+        buttons: [...currentButtons, newButton],
+      },
+    }
+    setData(updatedData)
+  }
+
+  const removeHeroButton = (buttonId: string) => {
+    const updatedData = {
+      ...safeData,
+      hero: {
+        ...safeData.hero,
+        buttons: (safeData.hero.buttons || []).filter((button) => button.id !== buttonId),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const updateHeroButton = (buttonId: string, field: string, value: any) => {
+    const updatedData = {
+      ...safeData,
+      hero: {
+        ...safeData.hero,
+        buttons: (safeData.hero.buttons || []).map((button) =>
+          button.id === buttonId ? { ...button, [field]: value } : button,
+        ),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const addCooperationFeature = () => {
+    const newFeature = {
+      id: crypto.randomUUID(),
+      icon: "⭐",
+      title: "Новое преимущество",
+      description: "Описание преимущества",
+    }
+    const updatedData = {
+      ...safeData,
+      cooperation: {
+        ...safeData.cooperation,
+        features: [...safeCooperationFeatures, newFeature],
+      },
+    }
+    setData(updatedData)
+  }
+
+  const removeCooperationFeature = (id: string) => {
+    const currentFeatures = safeData.cooperation.features || []
+    const updatedFeatures = currentFeatures.filter((feature) => feature.id !== id)
+    updateField("cooperation", "features", updatedFeatures)
+  }
+
+  const updateCooperationFeature = (id: string, field: string, value: string) => {
+    const updatedData = {
+      ...safeData,
+      cooperation: {
+        ...safeData.cooperation,
+        features: safeCooperationFeatures.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const addCooperationButton = () => {
+    const newButton = {
+      id: crypto.randomUUID(),
+      text: "Новая кнопка",
+      link: "/",
+      variant: "secondary" as const,
+    }
+
+    const updatedData = {
+      ...safeData,
+      cooperation: {
+        ...safeData.cooperation,
+        buttons: [...safeCooperationButtons, newButton],
+      },
+    }
+    setData(updatedData)
+  }
+
+  const removeCooperationButton = (buttonId: string) => {
+    const updatedData = {
+      ...safeData,
+      cooperation: {
+        ...safeData.cooperation,
+        buttons: safeCooperationButtons.filter((button) => button.id !== buttonId),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const updateCooperationButton = (buttonId: string, field: string, value: any) => {
+    const updatedData = {
+      ...safeData,
+      cooperation: {
+        ...safeData.cooperation,
+        buttons: safeCooperationButtons.map((button) =>
+          button.id === buttonId ? { ...button, [field]: value } : button,
+        ),
+      },
+    }
+    setData(updatedData)
+  }
+
+  const saveAllData = async () => {
+    setIsSaving(true)
     try {
-      setSaveStatus("saving")
-      console.log("[v0] Saving all data:", safeData)
       await saveAll(safeData)
       console.log("[v0] All data saved successfully")
-      setSaveStatus("saved")
-      setTimeout(() => setSaveStatus("idle"), 2000)
     } catch (error) {
       console.error("[v0] Failed to save data:", error)
-      setSaveStatus("error")
-      setTimeout(() => setSaveStatus("idle"), 3000)
+    } finally {
+      setIsSaving(false)
     }
+  }
+
+  const uploadHeroBackground = async () => {
+    handleImageUpload("hero", "backgroundImage")
+  }
+
+  const createCustomBlock = async () => {
+    setIsCreatingBlock(true)
+
+    const newBlock = {
+      id: `custom-${Date.now()}`,
+      type: "custom" as const,
+      title: `Новый блок ${safeCustomBlocks.length + 1}`,
+      subtitle: "Описание нового блока",
+      description: "Подробное описание функционала блока",
+      backgroundImage: "/fabric-texture-wall-panels.png",
+      images: [],
+      buttons: [],
+      features: [],
+      visible: true,
+      order: safeCustomBlocks.length + 5,
+    }
+
+    const updatedData = {
+      ...safeData,
+      customBlocks: [...safeCustomBlocks, newBlock],
+    }
+
+    setData(updatedData)
+
+    setTimeout(() => {
+      startEditingBlockName(newBlock.id, newBlock.title)
+      setIsCreatingBlock(false)
+    }, 100)
+  }
+
+  const moveMainBlock = (blockKey: string, direction: "up" | "down") => {
+    const currentIndex = safeBlockOrder.indexOf(blockKey)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1
+
+    if (newIndex < 0 || newIndex >= safeBlockOrder.length) return
+
+    const updatedBlockOrder = [...safeBlockOrder]
+    updatedBlockOrder[currentIndex] = safeBlockOrder[newIndex]
+    updatedBlockOrder[newIndex] = blockKey
+
+    const updatedData = {
+      ...safeData,
+      blockOrder: updatedBlockOrder,
+    }
+    setData(updatedData)
+  }
+
+  const moveCustomBlock = (blockId: string, direction: "up" | "down") => {
+    const currentIndex = safeCustomBlocks.findIndex((block) => block.id === blockId)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1
+
+    if (newIndex < 0 || newIndex >= safeCustomBlocks.length) return
+
+    const updatedBlocks = [...safeCustomBlocks]
+    const temp = updatedBlocks[currentIndex]
+    updatedBlocks[currentIndex] = updatedBlocks[newIndex]
+    updatedBlocks[newIndex] = temp
+
+    // Обновляем order для корректного отображения порядка
+    updatedBlocks.forEach((block, index) => {
+      block.order = index + 5 // Предполагаем, что основные блоки занимают первые 4 позиции
+    })
+
+    const updatedData = {
+      ...safeData,
+      customBlocks: updatedBlocks,
+    }
+    setData(updatedData)
   }
 
   return (
@@ -373,19 +687,9 @@ export default function HomePageAdmin() {
           <p className="text-muted-foreground">Настройте содержимое и порядок блоков на главной странице</p>
         </div>
         <div className="flex items-center gap-4">
-          <Button onClick={handleSave} disabled={saveStatus === "saving"} className="flex items-center gap-2">
-            {saveStatus === "saving" && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            )}
-            {saveStatus === "saved" && <Check className="h-4 w-4" />}
-            {saveStatus === "error" && <X className="h-4 w-4" />}
-            {saveStatus === "saving"
-              ? "Сохранение..."
-              : saveStatus === "saved"
-                ? "Сохранено!"
-                : saveStatus === "error"
-                  ? "Ошибка!"
-                  : "Сохранить изменения"}
+          <Button onClick={saveAllData} disabled={isSaving} className="flex items-center gap-2">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Сохранить все
           </Button>
           <Button variant="outline" onClick={() => window.open("/", "_blank")}>
             <Eye className="h-4 w-4 mr-2" />
@@ -399,43 +703,52 @@ export default function HomePageAdmin() {
           <h3 className="font-semibold text-orange-900">Дополнительные блоки</h3>
           <p className="text-sm text-orange-700">Создавайте дополнительные блоки для расширения функционала страницы</p>
         </div>
-        <Button onClick={createNewBlock} className="bg-orange-500 hover:bg-orange-600">
+        <Button
+          onClick={addCustomBlock}
+          disabled={isCreatingBlock}
+          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
+        >
           <Plus className="h-4 w-4 mr-2" />
-          Создать новый блок
+          {isCreatingBlock ? "Создание..." : "Создать новый блок"}
         </Button>
       </div>
 
       <Tabs defaultValue="hero" className="space-y-4">
-        <TabsList className={`grid w-full ${safeData.customBlocks.length > 0 ? "grid-cols-6" : "grid-cols-4"}`}>
-          <TabsTrigger value="hero" className="flex items-center gap-2">
-            {safeData.hero.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            Hero блок
-          </TabsTrigger>
-          <TabsTrigger value="advantages" className="flex items-center gap-2">
-            {safeData.advantages.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            Преимущества
-          </TabsTrigger>
-          <TabsTrigger value="gallery" className="flex items-center gap-2">
-            {safeData.productGallery.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            Галерея
-          </TabsTrigger>
-          <TabsTrigger value="cooperation" className="flex items-center gap-2">
-            {safeData.cooperation.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            Сотрудничество
-          </TabsTrigger>
-          {safeData.customBlocks.length > 0 && (
-            <TabsTrigger value="custom" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              {safeData.customBlocks.length === 1
-                ? safeData.customBlocks[0].title
-                : `Доп. блоки (${safeData.customBlocks.length})`}
+        <div className="space-y-4">
+          <TabsList className={`grid w-full ${safeCustomBlocks.length > 0 ? "grid-cols-5" : "grid-cols-4"}`}>
+            <TabsTrigger value="hero" className="flex items-center gap-2">
+              {safeData.hero.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              Hero блок
             </TabsTrigger>
-          )}
-          <TabsTrigger value="order" className="flex items-center gap-2">
-            <MoveUp className="h-4 w-4" />
-            Порядок блоков
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger value="advantages" className="flex items-center gap-2">
+              {safeData.advantages.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              Преимущества
+            </TabsTrigger>
+            <TabsTrigger value="gallery" className="flex items-center gap-2">
+              {safeData.productGallery.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              Галерея
+            </TabsTrigger>
+            <TabsTrigger value="cooperation" className="flex items-center gap-2">
+              {safeData.cooperation.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              Сотрудничество
+            </TabsTrigger>
+            {safeCustomBlocks.length > 0 && (
+              <TabsTrigger value="custom" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                {safeCustomBlocks.length === 1 ? safeCustomBlocks[0].title : `Доп. блоки (${safeCustomBlocks.length})`}
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <div className="flex justify-center">
+            <TabsList className="w-auto">
+              <TabsTrigger value="order" className="flex items-center gap-2 px-6">
+                <MoveUp className="h-4 w-4" />
+                Порядок блоков
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
         {/* Hero Block */}
         <TabsContent value="hero">
@@ -444,7 +757,7 @@ export default function HomePageAdmin() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Hero блок</CardTitle>
-                  <CardDescription>Главный баннер страницы</CardDescription>
+                  <CardDescription>Главный баннер страницы со слайдером изображений</CardDescription>
                 </div>
                 <div className="flex items-center gap-4">
                   <Badge variant={safeData.hero.visible ? "default" : "secondary"}>
@@ -484,43 +797,127 @@ export default function HomePageAdmin() {
                   onChange={(e) => updateField("hero", "description", e.target.value)}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hero-button">Текст кнопки</Label>
-                  <Input
-                    id="hero-button"
-                    value={safeData.hero.ctaText}
-                    onChange={(e) => updateField("hero", "ctaText", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="hero-link">Ссылка кнопки</Label>
-                  <Input
-                    id="hero-link"
-                    value={safeData.hero.ctaLink}
-                    onChange={(e) => updateField("hero", "ctaLink", e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Фоновое изображение</Label>
-                <div className="flex items-center gap-4">
-                  {safeData.hero.backgroundImage && (
-                    <img
-                      src={safeData.hero.backgroundImage || "/placeholder.svg"}
-                      alt="Background preview"
-                      className="w-20 h-20 object-cover rounded border"
-                    />
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={() => handleImageUpload("hero", "backgroundImage")}
-                    className="bg-transparent"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Загрузить изображение
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Кнопки действий</Label>
+                  <Button size="sm" variant="outline" onClick={addHeroButton}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить кнопку
                   </Button>
                 </div>
+
+                {(safeData.hero.buttons || []).map((button, index) => (
+                  <Card key={button.id} className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <Input
+                            placeholder="Текст кнопки"
+                            value={button.text}
+                            onChange={(e) => updateHeroButton(button.id, "text", e.target.value)}
+                          />
+                          <Input
+                            placeholder="Ссылка"
+                            value={button.link}
+                            onChange={(e) => updateHeroButton(button.id, "link", e.target.value)}
+                          />
+                          <Select
+                            value={button.variant || "primary"}
+                            onValueChange={(value) => updateHeroButton(button.id, "variant", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="primary">Основная</SelectItem>
+                              <SelectItem value="secondary">Вторичная</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeHeroButton(button.id)}
+                        className="text-red-500 bg-transparent"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+
+                {/* Показываем старые поля для обратной совместимости, если нет новых кнопок */}
+                {(!safeData.hero.buttons || safeData.hero.buttons.length === 0) && (
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-yellow-50 rounded border border-yellow-200">
+                    <div className="space-y-2">
+                      <Label htmlFor="hero-button">Текст кнопки (устаревшее)</Label>
+                      <Input
+                        id="hero-button"
+                        value={safeData.hero.ctaText}
+                        onChange={(e) => updateField("hero", "ctaText", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="hero-link">Ссылка кнопки (устаревшее)</Label>
+                      <Input
+                        id="hero-link"
+                        value={safeData.hero.ctaLink}
+                        onChange={(e) => updateField("hero", "ctaLink", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Основное фоновое изображение</Label>
+                  <div className="flex items-center gap-4">
+                    {safeData.hero.backgroundImage && (
+                      <img
+                        src={safeData.hero.backgroundImage || "/placeholder.svg"}
+                        alt="Background preview"
+                        className="w-32 h-20 object-cover rounded border"
+                      />
+                    )}
+                    <Button size="sm" variant="outline" onClick={uploadHeroBackground}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Загрузить основное фото
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label>Дополнительные изображения для слайдера</Label>
+                  <Button size="sm" variant="outline" onClick={addHeroImage}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить изображение
+                  </Button>
+                </div>
+
+                {(safeData.hero.images || []).length > 0 && (
+                  <div className="grid grid-cols-6 gap-2">
+                    {(safeData.hero.images || []).map((image, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={image || "/placeholder.svg"}
+                          alt={`Hero image ${index + 1}`}
+                          className="w-full h-16 object-cover rounded border"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeHeroImage(index)}
+                          className="absolute -top-1 -right-1 h-5 w-5 p-0 text-red-500 bg-white border"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -575,7 +972,7 @@ export default function HomePageAdmin() {
                   </Button>
                 </div>
 
-                {safeData.advantages.advantages.map((item) => (
+                {safeAdvantages.map((item) => (
                   <Card key={item.id} className="p-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 space-y-2">
@@ -664,7 +1061,7 @@ export default function HomePageAdmin() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
-                  {safeData.productGallery.products.map((item) => (
+                  {safeProducts.map((item) => (
                     <Card key={item.id} className="p-4">
                       <div className="flex items-start gap-4">
                         <div className="flex-1 space-y-2">
@@ -732,7 +1129,7 @@ export default function HomePageAdmin() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Блок сотрудничества</CardTitle>
-                  <CardDescription>Призыв к партнерству</CardDescription>
+                  <CardDescription>Информация о партнерстве и предложениях</CardDescription>
                 </div>
                 <div className="flex items-center gap-4">
                   <Badge variant={safeData.cooperation.visible ? "default" : "secondary"}>
@@ -745,69 +1142,130 @@ export default function HomePageAdmin() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="coop-title">Заголовок</Label>
+                  <Label>Заголовок</Label>
                   <Input
-                    id="coop-title"
-                    value={safeData.cooperation.title}
+                    value={safeData.cooperation.title || ""}
                     onChange={(e) => updateField("cooperation", "title", e.target.value)}
+                    placeholder="Заголовок блока"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="coop-subtitle">Подзаголовок</Label>
+                  <Label>Подзаголовок</Label>
                   <Input
-                    id="coop-subtitle"
-                    value={safeData.cooperation.subtitle}
+                    value={safeData.cooperation.subtitle || ""}
                     onChange={(e) => updateField("cooperation", "subtitle", e.target.value)}
+                    placeholder="Подзаголовок блока"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="coop-description">Описание</Label>
+                <Label>Описание</Label>
                 <Textarea
-                  id="coop-description"
-                  value={safeData.cooperation.description}
+                  value={safeData.cooperation.description || ""}
                   onChange={(e) => updateField("cooperation", "description", e.target.value)}
+                  placeholder="Описание блока"
+                  rows={3}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="coop-button">Текст кнопки</Label>
-                  <Input
-                    id="coop-button"
-                    value={safeData.cooperation.ctaText}
-                    onChange={(e) => updateField("cooperation", "ctaText", e.target.value)}
-                  />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Преимущества</Label>
+                  <Button size="sm" variant="outline" onClick={addCooperationFeature}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить преимущество
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="coop-link">Ссылка кнопки</Label>
-                  <Input
-                    id="coop-link"
-                    value={safeData.cooperation.ctaLink}
-                    onChange={(e) => updateField("cooperation", "ctaLink", e.target.value)}
-                  />
+
+                {(safeData.cooperation.features || []).map((feature, index) => (
+                  <div key={feature.id} className="flex items-start gap-4 p-4 border rounded">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={feature.title}
+                        onChange={(e) => updateCooperationFeature(feature.id, "title", e.target.value)}
+                        placeholder="Заголовок преимущества"
+                      />
+                      <Textarea
+                        value={feature.description}
+                        onChange={(e) => updateCooperationFeature(feature.id, "description", e.target.value)}
+                        placeholder="Описание преимущества"
+                        rows={2}
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => removeCooperationFeature(feature.id)}
+                      className="text-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Кнопки действий</Label>
+                  <Button size="sm" variant="outline" onClick={addCooperationButton}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить кнопку
+                  </Button>
                 </div>
+
+                {(safeData.cooperation.buttons || []).map((button, index) => (
+                  <div key={button.id} className="flex items-center gap-2">
+                    <Input
+                      value={button.text}
+                      onChange={(e) => updateCooperationButton(button.id, "text", e.target.value)}
+                      placeholder="Текст кнопки"
+                      className="flex-1"
+                    />
+                    <Input
+                      value={button.link}
+                      onChange={(e) => updateCooperationButton(button.id, "link", e.target.value)}
+                      placeholder="Ссылка"
+                      className="flex-1"
+                    />
+                    <Select
+                      value={button.variant}
+                      onChange={(value) => updateCooperationButton(button.id, "variant", value)}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">Основная</SelectItem>
+                        <SelectItem value="secondary">Вторичная</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => removeCooperationButton(button.id)}
+                      className="text-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
 
               <div className="space-y-2">
                 <Label>Фоновое изображение</Label>
                 <div className="flex items-center gap-4">
-                  {safeData.cooperation.backgroundImage && (
+                  {safeData.cooperation.uploadedImage && (
                     <img
-                      src={safeData.cooperation.backgroundImage || "/placeholder.svg"}
-                      alt="Background preview"
-                      className="w-20 h-20 object-cover rounded border"
+                      src={safeData.cooperation.uploadedImage || "/placeholder.svg"}
+                      alt="Cooperation background"
+                      className="w-32 h-20 object-cover rounded border"
                     />
                   )}
-                  <Button
-                    variant="outline"
-                    onClick={() => handleImageUpload("cooperation", "backgroundImage")}
-                    className="bg-transparent"
-                  >
+                  <Button size="sm" variant="outline" onClick={uploadCooperationImage}>
                     <Upload className="h-4 w-4 mr-2" />
                     Загрузить изображение
                   </Button>
@@ -817,163 +1275,180 @@ export default function HomePageAdmin() {
           </Card>
         </TabsContent>
 
-        {safeData.customBlocks.length > 0 && (
+        {/* Custom Blocks */}
+        {safeCustomBlocks.length > 0 && (
           <TabsContent value="custom">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold">Дополнительные блоки</h3>
-                  <p className="text-sm text-muted-foreground">Управляйте дополнительными блоками страницы</p>
+                  <p className="text-sm text-muted-foreground">Управление пользовательскими блоками</p>
                 </div>
-                <Button onClick={createNewBlock} variant="outline">
+                <Button onClick={createCustomBlock}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Добавить блок
+                  Создать новый блок
                 </Button>
               </div>
 
-              {safeData.customBlocks
-                .sort((a, b) => a.order - b.order)
-                .map((block, index) => (
-                  <Card key={block.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+              {safeCustomBlocks.map((block) => (
+                <Card key={block.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>
+                          {/* {block.title} */}
+                          {/* Улучшаю отображение редактирования названия блока */}
                           {editingBlockId === block.id ? (
                             <div className="flex items-center gap-2">
                               <Input
                                 value={editingBlockName}
                                 onChange={(e) => setEditingBlockName(e.target.value)}
-                                className="w-48"
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") saveBlockName(block.id)
-                                  if (e.key === "Escape") cancelEditingBlockName()
+                                  if (e.key === "Enter") {
+                                    saveBlockName(block.id)
+                                  } else if (e.key === "Escape") {
+                                    setEditingBlockId(null)
+                                    setEditingBlockName("")
+                                  }
                                 }}
+                                className="text-sm"
                                 autoFocus
                               />
-                              <Button size="sm" variant="outline" onClick={() => saveBlockName(block.id)}>
-                                <Check className="h-4 w-4" />
+                              <Button
+                                size="sm"
+                                onClick={() => saveBlockName(block.id)}
+                                className="bg-green-500 hover:bg-green-600"
+                              >
+                                <Check className="h-3 w-3" />
                               </Button>
-                              <Button size="sm" variant="outline" onClick={cancelEditingBlockName}>
-                                <X className="h-4 w-4" />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingBlockId(null)
+                                  setEditingBlockName("")
+                                }}
+                              >
+                                <X className="h-3 w-3" />
                               </Button>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <CardTitle>
-                                Блок {index + 1}: {block.title}
-                              </CardTitle>
+                              <span className="font-medium">{block.title}</span>
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => startEditingBlockName(block.id, block.title)}
+                                className="h-6 w-6 p-0"
                               >
-                                <Edit2 className="h-4 w-4" />
+                                <Edit2 className="h-3 w-3" />
                               </Button>
                             </div>
                           )}
-                          <Badge variant={block.visible ? "default" : "secondary"}>
-                            {block.visible ? "Видимый" : "Скрытый"}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => moveCustomBlock(block.id, "up")}
-                            disabled={index === 0}
-                          >
-                            <MoveUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => moveCustomBlock(block.id, "down")}
-                            disabled={index === safeData.customBlocks.length - 1}
-                          >
-                            <MoveDown className="h-4 w-4" />
-                          </Button>
-                          <Switch
-                            checked={block.visible}
-                            onCheckedChange={(checked) => updateCustomBlock(block.id, "visible", checked)}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => removeCustomBlock(block.id)}
-                            className="text-red-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        </CardTitle>
+                        <CardDescription>Пользовательский блок</CardDescription>
                       </div>
-                      <CardDescription>Дополнительный блок контента</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Заголовок</Label>
-                          <Input
-                            value={block.title}
-                            onChange={(e) => updateCustomBlock(block.id, "title", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Подзаголовок</Label>
-                          <Input
-                            value={block.subtitle}
-                            onChange={(e) => updateCustomBlock(block.id, "subtitle", e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Описание</Label>
-                        <Textarea
-                          value={block.description}
-                          onChange={(e) => updateCustomBlock(block.id, "description", e.target.value)}
+                      <div className="flex items-center gap-4">
+                        <Badge variant={block.visible ? "default" : "secondary"}>
+                          {block.visible ? "Видимый" : "Скрытый"}
+                        </Badge>
+                        <Switch
+                          checked={block.visible}
+                          onCheckedChange={(checked) => {
+                            const updatedBlocks = safeCustomBlocks.map((b) =>
+                              b.id === block.id ? { ...b, visible: checked } : b,
+                            )
+                            updateField("customBlocks", "", updatedBlocks)
+                          }}
                         />
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Текст кнопки</Label>
-                          <Input
-                            value={block.ctaText}
-                            onChange={(e) => updateCustomBlock(block.id, "ctaText", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Ссылка кнопки</Label>
-                          <Input
-                            value={block.ctaLink}
-                            onChange={(e) => updateCustomBlock(block.id, "ctaLink", e.target.value)}
-                          />
-                        </div>
-                      </div>
-
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Фоновое изображение</Label>
-                        <div className="flex items-center gap-4">
-                          {block.backgroundImage && (
-                            <img
-                              src={block.backgroundImage || "/placeholder.svg"}
-                              alt="Background preview"
-                              className="w-20 h-20 object-cover rounded border"
-                            />
-                          )}
-                          <Button
-                            variant="outline"
-                            onClick={() => handleImageUpload("custom", "backgroundImage", block.id)}
-                            className="bg-transparent"
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Загрузить изображение
-                          </Button>
-                        </div>
+                        <Label>Заголовок</Label>
+                        <Input
+                          value={block.title}
+                          onChange={(e) => {
+                            const updatedBlocks = safeCustomBlocks.map((b) =>
+                              b.id === block.id ? { ...b, title: e.target.value } : b,
+                            )
+                            updateField("customBlocks", "", updatedBlocks)
+                          }}
+                        />
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      <div className="space-y-2">
+                        <Label>Подзаголовок</Label>
+                        <Input
+                          value={block.subtitle || ""}
+                          onChange={(e) => {
+                            const updatedBlocks = safeCustomBlocks.map((b) =>
+                              b.id === block.id ? { ...b, subtitle: e.target.value } : b,
+                            )
+                            updateField("customBlocks", "", updatedBlocks)
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Описание</Label>
+                      <Textarea
+                        value={block.description || ""}
+                        onChange={(e) => {
+                          const updatedBlocks = safeCustomBlocks.map((b) =>
+                            b.id === block.id ? { ...b, description: e.target.value } : b,
+                          )
+                          updateField("customBlocks", "", updatedBlocks)
+                        }}
+                      />
+                    </div>
+
+                    {/* Изображения для блока */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Изображения блока</Label>
+                        <Button size="sm" variant="outline" onClick={() => addCustomBlockImage(block.id)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Добавить изображение
+                        </Button>
+                      </div>
+
+                      {(block.images || []).length > 0 && (
+                        <div className="grid grid-cols-3 gap-4">
+                          {(block.images || []).map((image, index) => (
+                            <div key={index} className="relative">
+                              <img
+                                src={image || "/placeholder.svg"}
+                                alt={`Block image ${index + 1}`}
+                                className="w-full h-24 object-cover rounded border"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const updatedBlocks = safeCustomBlocks.map((b) => {
+                                    if (b.id === block.id) {
+                                      const updatedImages = (b.images || []).filter((_, i) => i !== index)
+                                      return { ...b, images: updatedImages }
+                                    }
+                                    return b
+                                  })
+                                  updateField("customBlocks", "", updatedBlocks)
+                                }}
+                                className="absolute top-1 right-1 h-6 w-6 p-0 text-red-500"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </TabsContent>
         )}
@@ -988,61 +1463,54 @@ export default function HomePageAdmin() {
               <div className="space-y-2">
                 <h4 className="font-medium">Основные блоки</h4>
                 <div className="space-y-2">
-                  {(safeData.blockOrder || ["hero", "advantages", "productGallery", "cooperation"]).map(
-                    (blockKey, index) => {
-                      const blockInfo = {
-                        hero: { name: "Hero блок", visible: safeData.hero.visible },
-                        advantages: { name: "Преимущества", visible: safeData.advantages.visible },
-                        productGallery: { name: "Галерея продуктов", visible: safeData.productGallery.visible },
-                        cooperation: { name: "Сотрудничество", visible: safeData.cooperation.visible },
-                      }[blockKey]
+                  {safeBlockOrder.map((blockKey, index) => {
+                    const blockInfo = {
+                      hero: { name: "Hero блок", visible: safeData.hero.visible },
+                      advantages: { name: "Преимущества", visible: safeData.advantages.visible },
+                      productGallery: { name: "Галерея продуктов", visible: safeData.productGallery.visible },
+                      cooperation: { name: "Сотрудничество", visible: safeData.cooperation.visible },
+                    }[blockKey]
 
-                      if (!blockInfo) return null
+                    if (!blockInfo) return null
 
-                      return (
-                        <div key={blockKey} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium">#{index + 1}</span>
-                            <span>{blockInfo.name}</span>
-                            <Badge variant={blockInfo.visible ? "default" : "secondary"}>
-                              {blockInfo.visible ? "Видимый" : "Скрытый"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => moveMainBlock(blockKey, "up")}
-                              disabled={index === 0}
-                            >
-                              <MoveUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => moveMainBlock(blockKey, "down")}
-                              disabled={
-                                index ===
-                                (safeData.blockOrder || ["hero", "advantages", "productGallery", "cooperation"])
-                                  .length -
-                                  1
-                              }
-                            >
-                              <MoveDown className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    return (
+                      <div key={blockKey} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium">#{index + 1}</span>
+                          <span>{blockInfo.name}</span>
+                          <Badge variant={blockInfo.visible ? "default" : "secondary"}>
+                            {blockInfo.visible ? "Видимый" : "Скрытый"}
+                          </Badge>
                         </div>
-                      )
-                    },
-                  )}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => moveMainBlock(blockKey, "up")}
+                            disabled={index === 0}
+                          >
+                            <MoveUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => moveMainBlock(blockKey, "down")}
+                            disabled={index === safeBlockOrder.length - 1}
+                          >
+                            <MoveDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
-              {safeData.customBlocks.length > 0 && (
+              {safeCustomBlocks.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="font-medium">Дополнительные блоки</h4>
                   <div className="space-y-2">
-                    {safeData.customBlocks
+                    {safeCustomBlocks
                       .sort((a, b) => a.order - b.order)
                       .map((block, index) => (
                         <div key={block.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -1066,7 +1534,7 @@ export default function HomePageAdmin() {
                               size="sm"
                               variant="outline"
                               onClick={() => moveCustomBlock(block.id, "down")}
-                              disabled={index === safeData.customBlocks.length - 1}
+                              disabled={index === safeCustomBlocks.length - 1}
                             >
                               <MoveDown className="h-4 w-4" />
                             </Button>

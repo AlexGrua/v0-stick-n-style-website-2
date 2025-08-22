@@ -31,7 +31,7 @@ export default function ContactPage() {
                 <Input type="email" placeholder="Email" required aria-label="Email" />
                 <Input placeholder="Phone (optional)" aria-label="Phone" />
                 <Textarea rows={5} placeholder="How can we help?" required aria-label="Message" />
-                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+                <Button type="submit" className="bg-lime-500 hover:bg-lime-600">
                   Send message
                 </Button>
               </form>

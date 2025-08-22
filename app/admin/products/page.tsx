@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useState, useEffect } from "react"
 import type { Product } from "@/lib/types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,18 +15,38 @@ type ProductsResponse = { items: Product[] }
 async function fetchProducts(): Promise<ProductsResponse> {
   const res = await fetch("/api/products")
   if (!res.ok) throw new Error("Failed to load products")
-  return (await res.json()) as ProductsResponse
+  return await res.json()
 }
 
 export default function ProductsPage() {
   // Redirect all visits of /admin/products to /admin/catalog
   redirect("/admin/catalog")
 
-  const { data, refetch, isLoading, isError } = useQuery({ queryKey: ["products"], queryFn: fetchProducts })
+  const [data, setData] = useState<ProductsResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isError, setIsError] = useState(false)
   const products = data?.items ?? []
 
   const [open, setOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<Product | null>(null)
+
+  const refetch = async () => {
+    try {
+      setIsLoading(true)
+      setIsError(false)
+      const result = await fetchProducts()
+      setData(result)
+    } catch (error) {
+      setIsError(true)
+      console.error("Failed to fetch products:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    refetch()
+  }, [])
 
   const openNew = () => {
     setSelected(null)
@@ -101,14 +121,12 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      {/* Shared modal for New and Edit (same component) */}
       <ExtendedProductForm
         key={selected?.id || "new"}
         open={open}
         onOpenChange={(v) => {
           setOpen(v)
           if (!v) {
-            // ensure next open starts with fresh state
             setTimeout(() => {
               setSelected(null)
               refetch()

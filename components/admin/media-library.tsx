@@ -4,6 +4,7 @@ import * as React from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { uploadImage } from "@/lib/image-upload"
 
 type MediaItem = {
   id: string
@@ -38,26 +39,29 @@ export function MediaLibrary({
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const dataUrl = reader.result as string
-      setUploading(true)
-      try {
-        const res = await fetch("/api/admin/media", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: dataUrl, alt: file.name, size: file.size }),
-        })
-        if (res.ok) {
-          const item = (await res.json()) as MediaItem
-          setItems((prev) => [item, ...prev])
-        }
-      } finally {
-        setUploading(false)
-        e.target.value = ""
+
+    setUploading(true)
+    try {
+      console.log("[v0] Uploading file to media library:", file.name)
+      const permanentUrl = await uploadImage(file)
+
+      const res = await fetch("/api/admin/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: permanentUrl, alt: file.name, size: file.size }),
+      })
+
+      if (res.ok) {
+        const item = (await res.json()) as MediaItem
+        setItems((prev) => [item, ...prev])
+        console.log("[v0] File uploaded to media library successfully")
       }
+    } catch (error) {
+      console.error("[v0] Media library upload failed:", error)
+    } finally {
+      setUploading(false)
+      e.target.value = ""
     }
-    reader.readAsDataURL(file)
   }
 
   return (

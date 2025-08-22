@@ -1,49 +1,78 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { getHomePageData, saveHomePageData } from "@/lib/db"
 
 export async function GET() {
-  const { homePage } = db()
-  return NextResponse.json(homePage)
+  try {
+    const homePage = await getHomePageData()
+    return NextResponse.json(homePage)
+  } catch (error) {
+    console.error("Error in GET /api/home-page:", error)
+    return NextResponse.json({ error: "Failed to fetch home page data" }, { status: 500 })
+  }
 }
 
 export async function PUT(req: Request) {
-  const state = db()
-
   try {
     const updates = await req.json()
     const now = new Date().toISOString()
 
-    // Update home page data
-    state.homePage = {
-      ...state.homePage,
+    // Получаем текущие данные
+    const currentData = await getHomePageData()
+    if (!currentData) {
+      return NextResponse.json({ error: "Failed to load current data" }, { status: 500 })
+    }
+
+    // Обновляем данные
+    const updatedData = {
+      ...currentData,
       ...updates,
       updatedAt: now,
     }
 
-    return NextResponse.json(state.homePage)
+    // Сохраняем в Supabase
+    const success = await saveHomePageData(updatedData)
+    if (!success) {
+      return NextResponse.json({ error: "Failed to save data" }, { status: 500 })
+    }
+
+    return NextResponse.json(updatedData)
   } catch (error) {
+    console.error("Error in PUT /api/home-page:", error)
     return NextResponse.json({ error: "Invalid JSON data" }, { status: 400 })
   }
 }
 
 export async function PATCH(req: Request) {
-  const state = db()
-
   try {
     const { blockType, blockData } = await req.json()
     const now = new Date().toISOString()
 
-    // Update specific block
+    // Получаем текущие данные
+    const currentData = await getHomePageData()
+    if (!currentData) {
+      return NextResponse.json({ error: "Failed to load current data" }, { status: 500 })
+    }
+
+    // Обновляем конкретный блок
     if (blockType && blockData) {
-      state.homePage = {
-        ...state.homePage,
+      const updatedData = {
+        ...currentData,
         [blockType]: blockData,
         updatedAt: now,
       }
+
+      // Сохраняем в Supabase
+      const success = await saveHomePageData(updatedData)
+      if (!success) {
+        return NextResponse.json({ error: "Failed to save data" }, { status: 500 })
+      }
+
+      return NextResponse.json(updatedData)
     }
 
-    return NextResponse.json(state.homePage)
+    return NextResponse.json({ error: "Missing blockType or blockData" }, { status: 400 })
   } catch (error) {
+    console.error("Error in PATCH /api/home-page:", error)
     return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
   }
 }

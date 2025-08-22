@@ -49,22 +49,23 @@ export function ProductGalleryBlock({ data }: ProductGalleryBlockProps) {
   }
 
   const blockData = data || defaultData
+  const products = blockData.products || []
   const [currentIndex, setCurrentIndex] = useState(0)
   const itemsPerPage = 4
 
   if (!blockData.visible) return null
 
   const nextSlide = () => {
-    setCurrentIndex((prev) => (prev + itemsPerPage >= blockData.products.length ? 0 : prev + itemsPerPage))
+    setCurrentIndex((prev) => (prev + itemsPerPage >= products.length ? 0 : prev + itemsPerPage))
   }
 
   const prevSlide = () => {
     setCurrentIndex((prev) =>
-      prev === 0 ? Math.max(0, blockData.products.length - itemsPerPage) : Math.max(0, prev - itemsPerPage),
+      prev === 0 ? Math.max(0, products.length - itemsPerPage) : Math.max(0, prev - itemsPerPage),
     )
   }
 
-  const visibleItems = blockData.products.slice(currentIndex, currentIndex + itemsPerPage)
+  const visibleItems = products.slice(currentIndex, currentIndex + itemsPerPage)
 
   return (
     <section className="py-16 lg:py-24 bg-gray-50">
@@ -76,7 +77,7 @@ export function ProductGalleryBlock({ data }: ProductGalleryBlockProps) {
 
         <div className="relative">
           {/* Navigation buttons */}
-          {blockData.products.length > itemsPerPage && (
+          {products.length > itemsPerPage && (
             <div className="flex justify-between items-center mb-8">
               <Button
                 variant="outline"
@@ -92,7 +93,7 @@ export function ProductGalleryBlock({ data }: ProductGalleryBlockProps) {
                 variant="outline"
                 size="sm"
                 onClick={nextSlide}
-                disabled={currentIndex + itemsPerPage >= blockData.products.length}
+                disabled={currentIndex + itemsPerPage >= products.length}
                 className="flex items-center gap-2"
               >
                 Next
@@ -127,9 +128,9 @@ export function ProductGalleryBlock({ data }: ProductGalleryBlockProps) {
           </div>
 
           {/* Indicators */}
-          {blockData.products.length > itemsPerPage && (
+          {products.length > itemsPerPage && (
             <div className="flex justify-center mt-8 space-x-2">
-              {Array.from({ length: Math.ceil(blockData.products.length / itemsPerPage) }).map((_, index) => (
+              {Array.from({ length: Math.ceil(products.length / itemsPerPage) }).map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentIndex(index * itemsPerPage)}

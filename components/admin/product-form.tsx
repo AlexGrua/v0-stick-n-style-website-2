@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDropzone } from "react-dropzone"
+import { uploadImage } from "@/lib/image-upload"
 
 const schema = z.object({
   id: z.string().optional(),
@@ -183,13 +184,16 @@ export function ProductForm({
     multiple: false,
     accept: { "image/*": [] },
     maxSize: 10 * 1024 * 1024,
-    onDropAccepted: (files) => {
+    onDropAccepted: async (files) => {
       const file = files[0]
-      const reader = new FileReader()
-      reader.onload = () => {
-        form.setValue("thumbnailUrl", String(reader.result))
+      try {
+        console.log("[v0] Uploading thumbnail:", file.name)
+        const permanentUrl = await uploadImage(file)
+        form.setValue("thumbnailUrl", permanentUrl)
+        console.log("[v0] Thumbnail uploaded successfully")
+      } catch (error) {
+        console.error("[v0] Thumbnail upload failed:", error)
       }
-      reader.readAsDataURL(file)
     },
   })
 

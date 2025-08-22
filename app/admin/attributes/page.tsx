@@ -1,13 +1,12 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useState, useEffect, useMemo } from "react"
 import type { Attribute, Category } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Trash2, Tag } from "lucide-react"
-import { useState, useMemo } from "react"
 import { AttributeForm } from "@/components/admin/attribute-form"
 import { useToast } from "@/hooks/use-toast"
 
@@ -25,25 +24,53 @@ async function fetchCategories() {
 
 export default function AttributesPage() {
   const { toast } = useToast()
-  const qc = useQueryClient()
-  const { data, isLoading } = useQuery({ queryKey: ["attributes"], queryFn: fetchAttributes })
-  const { data: catData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories })
+  const [data, setData] = useState<{ items: Attribute[] } | null>(null)
+  const [catData, setCatData] = useState<{ items: Category[] } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const cats = catData?.items ?? []
 
   const [open, setOpen] = useState(false)
   const [edit, setEdit] = useState<Attribute | null>(null)
   const [search, setSearch] = useState("")
 
-  const del = useMutation({
-    mutationFn: async (id: string) => {
+  const loadAttributes = async () => {
+    try {
+      setIsLoading(true)
+      const result = await fetchAttributes()
+      setData(result)
+    } catch (error) {
+      console.error("Failed to load attributes:", error)
+      toast({ title: "Error loading attributes", variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const result = await fetchCategories()
+      setCatData(result)
+    } catch (error) {
+      console.error("Failed to load categories:", error)
+    }
+  }
+
+  useEffect(() => {
+    loadAttributes()
+    loadCategories()
+  }, [])
+
+  const handleDelete = async (id: string) => {
+    try {
       const res = await fetch(`/api/attributes/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Delete failed")
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attributes"] })
+      await loadAttributes() // Перезагружаем данные
       toast({ title: "Deleted" })
-    },
-  })
+    } catch (error) {
+      console.error("Delete failed:", error)
+      toast({ title: "Delete failed", variant: "destructive" })
+    }
+  }
 
   const items = useMemo(
     () =>
@@ -107,7 +134,7 @@ export default function AttributesPage() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => del.mutate(a.id)} aria-label="Delete">
+                    <Button size="icon" variant="ghost" onClick={() => handleDelete(a.id)} aria-label="Delete">
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
                   </div>
@@ -159,7 +186,7 @@ export default function AttributesPage() {
         </div>
       )}
 
-      <AttributeForm open={open} onOpenChange={setOpen} attribute={edit} />
+      <AttributeForm open={open} onOpenChange={setOpen} attribute={edit} onSuccess={loadAttributes} />
     </div>
   )
 }

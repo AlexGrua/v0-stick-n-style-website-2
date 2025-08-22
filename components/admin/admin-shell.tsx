@@ -4,7 +4,23 @@ import type React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Layers, Settings2, Home, Tags, Boxes, LayoutGrid, Users, Receipt, FileText, Truck } from "lucide-react"
+import {
+  Layers,
+  Settings2,
+  Home,
+  Tags,
+  Boxes,
+  LayoutGrid,
+  Users,
+  Receipt,
+  FileText,
+  Truck,
+  Database,
+  Navigation,
+  Search,
+  Languages,
+  Globe,
+} from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 type NavItem = { href: string; label: string; icon?: React.ComponentType<any> }
@@ -16,41 +32,45 @@ const groups: NavGroup[] = [
     items: [{ href: "/admin", label: "Overview", icon: Home }],
   },
   {
-    label: "Pages",
-    items: [
-      { href: "/admin/pages/home", label: "Home Page", icon: Home },
-      { href: "/admin/pages", label: "Pages", icon: FileText },
-    ],
-  },
-  {
-    label: "Catalog",
+    label: "Content Management",
     items: [
       { href: "/admin/catalog", label: "Products", icon: LayoutGrid },
       { href: "/admin/categories", label: "Categories", icon: Layers },
+      { href: "/admin/supply/suppliers", label: "Suppliers", icon: Truck },
+      { href: "/admin/orders", label: "Orders", icon: Receipt },
+      { href: "/admin/translations", label: "Translations", icon: Globe },
+      { href: "/admin/translations/bulk", label: "Bulk Translations", icon: Database },
     ],
   },
   {
-    label: "Supply",
-    items: [{ href: "/admin/supply/suppliers", label: "Suppliers", icon: Truck }],
+    label: "Pages Management",
+    items: [
+      { href: "/admin/pages/home", label: "Home Page", icon: Home },
+      { href: "/admin/pages/catalog", label: "Catalog Page", icon: LayoutGrid },
+      { href: "/admin/pages/about", label: "About Us Page", icon: FileText },
+      { href: "/admin/pages/contact", label: "Contact Page", icon: FileText },
+      { href: "/admin/pages/faqs", label: "FAQs Page", icon: FileText },
+      { href: "/admin/pages/create-order", label: "Create'N'Order Page", icon: FileText },
+    ],
   },
   {
-    label: "Sales",
+    label: "Site Settings",
+    items: [
+      { href: "/admin/settings/navigation", label: "Navigation", icon: Navigation },
+      { href: "/admin/settings/languages", label: "Languages", icon: Languages },
+      { href: "/admin/pages/footer", label: "Footer", icon: FileText },
+      { href: "/admin/settings/seo", label: "SEO Settings", icon: Search },
+      { href: "/admin/settings", label: "General Settings", icon: Settings2 },
+    ],
+  },
+  {
+    label: "System",
     items: [
       { href: "/admin/clients", label: "Clients", icon: Users },
-      { href: "/admin/orders", label: "Orders", icon: Receipt },
+      { href: "/admin/attributes", label: "Attributes", icon: Tags },
+      { href: "/admin/containers", label: "Containers", icon: Boxes },
+      { href: "/admin/database", label: "Database", icon: Database },
     ],
-  },
-  {
-    label: "Attributes",
-    items: [{ href: "/admin/attributes", label: "Attributes", icon: Tags }],
-  },
-  {
-    label: "Containers",
-    items: [{ href: "/admin/containers", label: "Containers", icon: Boxes }],
-  },
-  {
-    label: "Settings",
-    items: [{ href: "/admin/settings", label: "Settings", icon: Settings2 }],
   },
 ]
 

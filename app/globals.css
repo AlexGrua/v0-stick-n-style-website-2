@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -75,6 +73,7 @@
 }
 
 @theme inline {
+  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -119,71 +118,5 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-@layer utilities {
-  /* Basic animate-in/out helpers */
-  .animate-in {
-    animation: enter 150ms ease-out;
-  }
-  .animate-out {
-    animation: exit 150ms ease-in;
-  }
-
-  /* Optional helpers often used by shadcn/ui components */
-  .fade-in-0 {
-    --tw-enter-opacity: 0;
-  }
-  .fade-in-50 {
-    --tw-enter-opacity: 0.5;
-  }
-  .fade-in {
-    --tw-enter-opacity: 1;
-  }
-
-  .zoom-in-95 {
-    --tw-enter-scale: 0.95;
-  }
-  .zoom-in-90 {
-    --tw-enter-scale: 0.9;
-  }
-
-  .fade-out-0 {
-    --tw-exit-opacity: 0;
-  }
-  .fade-out-50 {
-    --tw-exit-opacity: 0.5;
-  }
-  .zoom-out-95 {
-    --tw-exit-scale: 0.95;
-  }
-  .zoom-out-90 {
-    --tw-exit-scale: 0.9;
-  }
-
-  /* Enter/exit keyframes (ensure braces are properly closed) */
-  @keyframes enter {
-    from {
-      opacity: var(--tw-enter-opacity, 0);
-      transform: translateY(var(--tw-enter-translate-y, 0.25rem)) translateX(var(--tw-enter-translate-x, 0))
-        scale(var(--tw-enter-scale, 0.98));
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) translateX(0) scale(1);
-    }
-  }
-
-  @keyframes exit {
-    from {
-      opacity: 1;
-      transform: translateY(0) translateX(0) scale(1);
-    }
-    to {
-      opacity: var(--tw-exit-opacity, 0);
-      transform: translateY(var(--tw-exit-translate-y, 0.25rem)) translateX(var(--tw-exit-translate-x, 0))
-        scale(var(--tw-exit-scale, 0.98));
-    }
   }
 }
