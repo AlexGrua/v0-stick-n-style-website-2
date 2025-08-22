@@ -10,6 +10,8 @@ import { SiteFooter } from "@/components/site-footer"
 import type { Category, Product, CatalogPageData, CatalogContentBlock } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight, Search, ShoppingCart } from "lucide-react"
+import { useT } from "@/lib/i18n"
+import { useContentTranslations } from "@/lib/content-i18n"
 
 const defaultPageData: CatalogPageData = {
   title: "Catalog",
@@ -84,7 +86,13 @@ function ContentBlock({ block }: { block: CatalogContentBlock }) {
   }
 }
 
+function TranslatedProductName({ id, fallback }: { id: string; fallback: string }) {
+  const { dict } = useContentTranslations("product", id)
+  return <>{dict.name || fallback}</>
+}
+
 export default function CatalogPage() {
+  const t = useT()
   const [categories, setCategories] = React.useState<Category[]>([])
   const [products, setProducts] = React.useState<Product[]>([])
   const [pageData, setPageData] = React.useState<CatalogPageData>(defaultPageData)
@@ -140,7 +148,6 @@ export default function CatalogPage() {
         if (selectedCategory && selectedCategory.subs) {
           const selectedSub = selectedCategory.subs.find((sub: any) => sub.name === activeSubcategory)
           if (selectedSub) {
-            // Assuming products have subcategory_id or similar field
             matchesSubcategory = p.subcategory_id === selectedSub.id || p.sub === activeSubcategory
           } else {
             matchesSubcategory = false
@@ -172,7 +179,6 @@ export default function CatalogPage() {
   }
 
   function handleSearch() {
-    // Search is handled by filteredProducts useMemo, so just trigger re-render
     setCurrentPage(1)
   }
 
@@ -205,7 +211,7 @@ export default function CatalogPage() {
                       : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
                   )}
                 >
-                  All Categories
+                  {t('catalog.all_categories','All Categories')}
                 </button>
                 {categories.map((category) => (
                   <button
@@ -227,7 +233,7 @@ export default function CatalogPage() {
             {/* Search positioned to the right */}
             <div className="max-w-md w-full lg:w-auto relative">
               <Input
-                placeholder="Search products by name or SKU..."
+                placeholder={t('catalog.search_placeholder','Search products by name or SKU...')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -236,6 +242,7 @@ export default function CatalogPage() {
               <button
                 onClick={handleSearch}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label={t('catalog.search','Search')}
               >
                 <Search className="h-4 w-4" />
               </button>
@@ -253,7 +260,7 @@ export default function CatalogPage() {
                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50",
                 )}
               >
-                All
+                {t('catalog.all','All')}
               </button>
               {activeSubcategories.map((sub) => (
                 <button
@@ -291,7 +298,7 @@ export default function CatalogPage() {
                 <div className="p-3 pb-12">
                   <Link href={`/catalog/${product.id}`} className="block mb-2">
                     <h3 className="font-semibold text-gray-900 truncate">
-                      {product.name}
+                      <TranslatedProductName id={product.id as string} fallback={product.name} />
                       {product.sku && ` • ${product.sku}`}
                     </h3>
                     <p className="text-sm text-gray-500">
@@ -299,85 +306,58 @@ export default function CatalogPage() {
                     </p>
                   </Link>
                 </div>
-                <button
-                  onClick={() => setQuickView(product)}
-                  className="absolute bottom-3 right-3 p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-full shadow-md transition-colors"
-                  aria-label="Add to cart"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                </button>
               </div>
             ))}
           </section>
 
-          {paginatedProducts.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No products found matching your criteria.</p>
-              <p className="text-xs text-gray-400 mt-2">
-                Total products: {products.length}, Filtered: {filteredProducts.length}
-              </p>
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum
-                  if (totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i
-                  } else {
-                    pageNum = currentPage - 2 + i
-                  }
-
-                  return (
+          {pageData.showPagination && (
+            <div className="flex justify-center mt-8">
+              <nav aria-label="Pagination">
+                <ul className="inline-flex items-center -space-x-px">
+                  <li>
                     <Button
-                      key={pageNum}
-                      variant={currentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className="w-10"
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="rounded-l-lg"
                     >
-                      {pageNum}
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
-                  )
-                })}
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                  </li>
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <li key={i + 1}>
+                      <Button
+                        onClick={() => setCurrentPage(i + 1)}
+                        className={cn(
+                          "px-3 py-2 leading-tight text-gray-500 border border-gray-300 hover:bg-gray-100 hover:text-gray-700",
+                          currentPage === i + 1
+                            ? "z-10 bg-lime-500 text-white border-lime-500"
+                            : "",
+                        )}
+                      >
+                        {i + 1}
+                      </Button>
+                    </li>
+                  ))}
+                  <li>
+                    <Button
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="rounded-r-lg"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </li>
+                </ul>
+              </nav>
             </div>
           )}
-
-          {afterProductsBlocks.map((block) => (
-            <ContentBlock key={block.id} block={block} />
-          ))}
         </div>
+
+        {afterProductsBlocks.map((block) => (
+          <ContentBlock key={block.id} block={block} />
+        ))}
       </main>
-
       <SiteFooter />
-
       <QuickView open={!!quickView} onOpenChange={(v) => !v && setQuickView(null)} product={quickView} />
     </div>
   )

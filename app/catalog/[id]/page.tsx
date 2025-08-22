@@ -8,6 +8,7 @@ import type { Product, Category } from "@/lib/types"
 import { ProductDetailView } from "@/components/catalog/product-detail-view"
 import { SiteFooter } from "@/components/site-footer"
 import { cn } from "@/lib/utils"
+import { useParams } from "next/navigation"
 
 async function getProduct(id: string): Promise<Product | null> {
   try {
@@ -234,15 +235,19 @@ function CatalogFilters() {
   )
 }
 
-export default function ProductPage({ params }: { params: { id: string } }) {
+export default function ProductPage() {
+  const routeParams = useParams() as any
+  const rawId = routeParams?.id as string | string[] | undefined
+  const id = Array.isArray(rawId) ? rawId[0] : rawId
   const [product, setProduct] = React.useState<Product | null>(null)
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
-    getProduct(params.id)
+    if (!id) return
+    getProduct(id)
       .then(setProduct)
       .finally(() => setLoading(false))
-  }, [params.id])
+  }, [id])
 
   if (loading) {
     return (

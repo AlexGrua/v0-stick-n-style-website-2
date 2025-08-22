@@ -15,6 +15,27 @@ function fail(message: string, status = 500) {
   return NextResponse.json({ success: false, error: message }, { status })
 }
 
+function normalizeZhAliases(map: Record<string, Record<string, { value: string; status?: string }>>) {
+  for (const k of Object.keys(map)) {
+    const entry = map[k] || {}
+    const cn = entry["cn"]?.value
+    const zh = entry["zh"]?.value
+    const zhCN = entry["zh-CN"]?.value || entry["zh_CN"]?.value
+    // Prefer existing values, but mirror to missing aliases
+    const base = cn || zh || zhCN
+    if (base) {
+      if (!entry["cn"]) entry["cn"] = { value: base, status: entry["cn"]?.status || "reviewed" }
+      if (!entry["zh"]) entry["zh"] = { value: base, status: entry["zh"]?.status || "reviewed" }
+      if (!entry["zh-CN"]) entry["zh-CN"] = { value: base, status: entry["zh-CN"]?.status || "reviewed" }
+    }
+    // Clean legacy zh_CN into zh-CN
+    if (entry["zh_CN"] && !entry["zh-CN"]) entry["zh-CN"] = entry["zh_CN"]
+    if (entry["zh_CN"]) delete (entry as any)["zh_CN"]
+    map[k] = entry
+  }
+  return map
+}
+
 // Shape:
 // GET -> { translations: { [key]: { [lang]: { value, status } } } }
 export async function GET() {
@@ -51,7 +72,7 @@ export async function PUT(request: Request) {
           next[k][lang] = { ...(next[k][lang] || {}), ...(incoming[k][lang] || {}) }
         }
       }
-      memoryStore.ui_translations = next
+      memoryStore.ui_translations = normalizeZhAliases(next)
       return ok({})
     }
 
@@ -70,7 +91,8 @@ export async function PUT(request: Request) {
       }
     }
 
-    const upsert = { key: "ui_translations", data: { translations: next }, updated_at: new Date().toISOString() }
+    const normalized = normalizeZhAliases(next)
+    const upsert = { key: "ui_translations", data: { translations: normalized }, updated_at: new Date().toISOString() }
     const { error: upErr } = await supabase.from("site_settings").upsert(upsert, { onConflict: "key" })
     if (upErr) throw upErr
 
