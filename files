@@ -1,0 +1,152 @@
+// app/account/page.tsx
+export default function AccountPage() {
+  'use client'
+
+  import Image from "next/image"
+  import { Button } from "@/components/ui/button"
+  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+  import { useAuth } from "@/components/auth/auth-provider"
+  import { Input } from "@/components/ui/input"
+  import { Label } from "@/components/ui/label"
+  import { useState } from "react"
+
+  const { user, updateProfile, logout } = useAuth()
+  const [username, setUsername] = useState(user?.username ?? "")
+  const [email, setEmail] = useState(user?.email ?? "")
+  const [phone, setPhone] = useState(user?.phone ?? "")
+  const [messenger, setMessenger] = useState(user?.messenger ?? "")
+
+  if (!user) {
+    return (
+      <main className="container mx-auto px-4 py-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Вы не авторизованы</CardTitle>
+          </CardHeader>
+          <CardContent>Пожалуйста, войдите через иконку в шапке.</CardContent>
+        </Card>
+      </main>
+    )
+  }
+
+  return (
+    <main className="container mx-auto px-4 py-10">
+      <div className="mb-6 flex items-center gap-4">
+        {/* Use the same icon as in the header, no green filter */}
+        <Image src="/icons/builder.png" alt="User" width={48} height={48} priority />
+        <Button
+          variant="outline"
+          className="bg-transparent border-red-600 text-red-600 hover:bg-red-50"
+          onClick={() => logout()}
+        >
+          Log out
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Профиль</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="grid max-w-xl gap-4"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              await updateProfile({ username, email, phone, messenger })
+            }}
+          >
+            <div className="grid gap-1.5">
+              <Label htmlFor="username">Логин</Label>
+              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="phone">Телефон</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="messenger">Messenger</Label>
+              <Input id="messenger" value={messenger} onChange={(e) => setMessenger(e.target.value)} />
+            </div>
+            <div>
+              <Button type="submit">Сохранить</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
+  )
+}
+
+// app/create-n-order/page.tsx
+import { cn } from "@/lib/utils"
+import { SelectTrigger } from "@/components/ui/select"
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption
+} from "@/components/ui/table"
+
+export default function CreateNOrderPage() {
+  // Existing code here
+
+  return (
+    <main className="w-full px-3 py-6">
+      {/* Existing code here */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_440px] xl:grid-cols-[1fr_480px]">
+        {/* Existing code here */}
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Color</span>
+            <SelectTrigger
+              className={cn(
+                "mx-auto h-6 w-20 truncate text-[10px] pr-2 [&_svg]:h-2 [&_svg]:w-2",
+                (!r.color || invalid) && "ring-1 ring-red-500",
+              )}
+              aria-label="Select color"
+              title={r.color || "Select color"}
+            >
+              {/* Existing code here */}
+            </SelectTrigger>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Thickness</span>
+            <SelectTrigger
+              className={cn(
+                "mx-auto h-6 w-20 truncate text-[10px] pr-2 [&_svg]:h-2 [&_svg]:w-2",
+                (!r.thickness || invalid) && "ring-1 ring-red-500",
+              )}
+              aria-label="Select thickness"
+              title={r.thickness || "Select thickness"}
+            >
+              {/* Existing code here */}
+            </SelectTrigger>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Size</span>
+            <SelectTrigger
+              className={cn(
+                "mx-auto h-6 w-20 truncate text-[10px] pr-2 [&_svg]:h-2 [&_svg]:w-2",
+                (!r.size || invalid) && "ring-1 ring-red-500",
+              )}
+              aria-label="Select size"
+              title={r.size || "Select size"}
+            >
+              {/* Existing code here */}
+            </SelectTrigger>
+          </div>
+        </div>
+        {/* Existing code here */}
+      </div>
+      {/* Existing code here */}
+    </main>
+  )
+}

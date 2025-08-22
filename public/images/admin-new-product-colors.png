@@ -1,0 +1,192 @@
+```FILES file="FILES"
+[v0-no-op-code-block-prefix] /// components/admin/product-form-extended.tsx
+import React from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import ImageDrop from "@/components/ui/image-drop";
+import Label from "@/components/ui/label";
+
+const ProductFormExtended = () => {
+  const form = useForm({
+    resolver: zodResolver(z.object({
+      colors: z.array(
+        z.object({
+          mainImage: z.string().optional(),
+          // other fields here
+        })
+      ),
+      // other fields here
+    })),
+    defaultValues: {
+      colors: [],
+      // other default values here
+    },
+  });
+
+  // No need to watch the entire colors array to avoid frequent re-renders
+
+  const ColorsEditor = ({ fields }) => {
+    return (
+      <div>
+        {fields.map((field, i) => {
+          const img = (form.watch(`colors.${i}.mainImage`) as string) || "";
+          return (
+            <div key={field.id} className="rounded border p-2">
+              <div className="grid items-center gap-2 md:grid-cols-[100px_1fr_1fr_auto]">
+                <div className="flex items-center justify-center">
+                  <ImageDrop
+                    value={img}
+                    onChange={(url) =>
+                      form.setValue(`colors.${i}.mainImage`, url, { shouldDirty: true, shouldValidate: true })
+                    }
+                    heightClass="h-16"
+                    widthClass="w-24"
+                  />
+                </div>
+                {/* other fields here */}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Other components and logic here
+
+  return (
+    <form>
+      {/* Other form fields here */}
+      <ColorsEditor fields={form.watch("colors")} />
+      {/* Other form fields here */}
+    </form>
+  );
+};
+
+export default ProductFormExtended;
+
+// components/admin/container-form.tsx
+import React, { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import Switch from "@/components/ui/switch";
+import Label from "@/components/ui/label";
+
+const ContainerForm = ({ container }) => {
+  const form = useForm({
+    resolver: zodResolver(z.object({
+      name: z.string(),
+      code: z.string(),
+      capacityKg: z.number(),
+      capacityM3: z.number(),
+      visible: z.boolean().default(true),
+    })),
+    defaultValues: {
+      name: "",
+      code: "",
+      capacityKg: 0,
+      capacityM3: 0,
+      visible: true,
+    },
+  });
+
+  useEffect(() => {
+    if (container) {
+      form.reset({
+        name: container.name,
+        code: container.code,
+        capacityKg: container.capacityKg,
+        capacityM3: container.capacityM3,
+        visible: container.visible ?? true,
+      });
+    } else {
+      form.reset({
+        name: "",
+        code: "",
+        capacityKg: 0,
+        capacityM3: 0,
+        visible: true,
+      });
+    }
+  }, [container, form]);
+
+  // Other components and logic here
+
+  return (
+    <form>
+      {/* Other form fields here */}
+      <div className="flex items-center justify-between">
+        <Label>Visible</Label>
+        <Switch
+          checked={!!form.watch("visible")}
+          onCheckedChange={(v) => form.setValue("visible", v, { shouldDirty: true, shouldValidate: true })}
+          aria-label="Make container visible"
+        />
+      </div>
+      {/* Other form fields here */}
+      {/* Action buttons here */}
+    </form>
+  );
+};
+
+export default ContainerForm;
+
+// app/admin/containers/page.tsx
+import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "react-query";
+import { toast } from "react-toastify";
+import Switch from "@/components/ui/switch";
+import Card from "@/components/ui/card";
+import CardHeader from "@/components/ui/card-header";
+import CardTitle from "@/components/ui/card-title";
+import CardActions from "@/components/ui/card-actions";
+import Button from "@/components/ui/button";
+
+const ContainersPage = () => {
+  const qc = useQueryClient();
+  const containers = []; // Assume this is fetched from an API
+
+  const toggleVisible = useMutation({
+    mutationFn: async ({ id, visible }: { id: string; visible: boolean }) => {
+      const res = await fetch(`/api/containers/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visible }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["containers"] });
+      toast({ title: "Updated" });
+    },
+  });
+
+  return (
+    <div>
+      {containers.map((c) => (
+        <Card key={c.id}>
+          <CardHeader>
+            <CardTitle>
+              {c.name}
+              <span className="ml-2 text-xs text-muted-foreground">{(c.visible ?? true) ? "Visible" : "Hidden"}</span>
+            </CardTitle>
+            <CardActions className="flex justify-end">
+              <Switch
+                checked={c.visible ?? true}
+                onCheckedChange={(v) => toggleVisible.mutate({ id: c.id, visible: v })}
+                aria-label="Toggle visibility"
+              />
+              {/* Edit and Delete buttons here */}
+            </CardActions>
+          </CardHeader>
+          {/* Other card content here */}
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+export default ContainersPage;

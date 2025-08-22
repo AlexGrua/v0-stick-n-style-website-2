@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="engGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#012169;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#003d88;stop-opacity:1" />
+        </linearGradient>
+        <pattern id="engPattern" x="0" y="0" width="100%" height="100%">
+            <rect width="260" height="260" fill="url(#engGradient)"/>
+            <path d="M0,0 L260,260 M260,0 L0,260" stroke="white" stroke-width="30" />
+            <path d="M0,0 L260,260 M260,0 L0,260" stroke="#C8102E" stroke-width="20" />
+            <path d="M110,0 L150,0 L150,260 L110,260 Z" fill="white" />
+            <path d="M0,110 L260,110 L260,150 L0,150 Z" fill="white" />
+            <path d="M115,0 L145,0 L145,260 L115,260 Z" fill="#C8102E" />
+            <path d="M0,115 L260,115 L260,145 L0,145 Z" fill="#C8102E" />
+        </pattern>
+    </defs>
+    <path d="M 50 50 L 105 50 C 105 50, 105 30, 130 30 C 155 30, 155 50, 155 50 L 210 50 L 210 105 C 210 105, 230 105, 230 130 C 230 155, 210 155, 210 155 L 210 210 L 155 210 C 155 210, 155 190, 130 190 C 105 190, 105 210, 105 210 L 50 210 Z"
+          fill="url(#engPattern)" stroke="white" stroke-width="3"/>
+    <text x="130" y="180" text-anchor="middle" font-family="Arial Black" font-size="42" font-weight="900" fill="white" stroke="rgba(0,0,0,0.3)" stroke-width="1">ENG</text>
+</svg>

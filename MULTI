@@ -1,0 +1,94 @@
+// app/account/page.tsx
+import Image from 'next/image';
+import cn from 'classnames';
+
+const AccountPage = () => {
+  return (
+    <div>
+      {/* Other code here */}
+      <Image src="/icons/builder-black.png" alt="User" width={48} height={48} />
+      {/* Other code here */}
+    </div>
+  );
+};
+
+export default AccountPage;
+
+// app/create-n-order/page.tsx
+import { SelectTrigger, SelectValue } from '@/components/ui/select';
+import cn from 'classnames';
+
+const CreateOrderPage = () => {
+  const r = {}; // Example object
+  const invalid = false; // Example condition
+
+  return (
+    <main className="mx-auto max-w-none px-2 sm:px-4 lg:px-6 xl:px-8 py-6">
+      {/* Other code here */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left column code here */}
+        <div className="col-span-1">
+          {/* Other code here */}
+          <SelectTrigger
+            className={cn(
+              "mx-auto h-6 w-24 truncate text-[11px] pr-3 [&_svg]:h-2.5 [&_svg]:w-2.5",
+              (!r.color || invalid) && "ring-1 ring-red-500",
+            )}
+            aria-label="Select color"
+            title={r.color || "Select color"}
+          >
+            <SelectValue placeholder="Color" />
+          </SelectTrigger>
+          {/* Other code here */}
+          <SelectTrigger
+            className={cn(
+              "mx-auto h-6 w-24 truncate text-[11px] pr-3 [&_svg]:h-2.5 [&_svg]:w-2.5",
+              (!r.thickness || invalid) && "ring-1 ring-red-500",
+            )}
+            aria-label="Select thickness"
+            title={r.thickness || "Select thickness"}
+          >
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          {/* Other code here */}
+          <SelectTrigger
+            className={cn(
+              "mx-auto h-6 w-24 truncate text-[11px] pr-3 [&_svg]:h-2.5 [&_svg]:w-2.5",
+              (!r.size || invalid) && "ring-1 ring-red-500",
+            )}
+            aria-label="Select size"
+            title={r.size || "Select size"}
+          >
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          {/* Other code here */}
+        </div>
+        {/* Right column code here */}
+        <div className="col-span-1">
+          {/* Other code here */}
+        </div>
+      </div>
+      {/* Other code here */}
+    </main>
+  );
+};
+
+export default CreateOrderPage;
+
+// components/ui/select.tsx
+import { SelectIcon } from '@radix-ui/react-select';
+import { ChevronDown } from 'lucide-react';
+
+const SelectComponent = () => {
+  return (
+    <div className="relative">
+      {/* Other code here */}
+      <SelectIcon asChild>
+        <ChevronDown className="h-3 w-3 opacity-60 absolute right-2 top-1/2 transform -translate-y-1/2" />
+      </SelectIcon>
+      {/* Other code here */}
+    </div>
+  );
+};
+
+export default SelectComponent;
