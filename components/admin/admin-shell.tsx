@@ -61,6 +61,10 @@ const groups: NavGroup[] = [
     ],
   },
   {
+    label: "Localization",
+    items: [{ href: "/admin/translations", label: "Translations", icon: FileText }],
+  },
+  {
     label: "System",
     items: [
       { href: "/admin/clients", label: "Clients", icon: Users },

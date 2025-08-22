@@ -81,13 +81,19 @@ export default function NavigationPage() {
   const saveData = async () => {
     setSaving(true)
     try {
+      // Save combined navigation settings
       const response = await fetch("/api/site-settings/navigation", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
       if (response.ok) {
-        console.log("Navigation saved successfully")
+        // Also persist the separate flag for compatibility
+        await fetch("/api/site-settings/language_switcher_visible", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: !!data.showLanguageSwitcher }),
+        })
       }
     } catch (error) {
       console.error("Error saving navigation:", error)
