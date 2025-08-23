@@ -1,37 +1,38 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const hasSupabase = !!supabaseUrl && !!supabaseServiceKey
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 export function createClient() {
-  if (!hasSupabase) {
-    throw new Error("Supabase env not configured")
-  }
-  return createSupabaseClient(supabaseUrl!, supabaseServiceKey!, {
-    realtime: { enabled: false },
-    auth: { autoRefreshToken: false, persistSession: false },
+  const cookieStore = cookies()
+
+  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        } catch {
+          // The "setAll" method was called from a Server Component.
+          // This can be ignored if you have middleware refreshing
+          // user sessions.
+        }
+      },
+    },
   })
 }
 
-// Provide a safe fallback so imports do not crash in local dev without env vars
-function createDummyTable() {
-  return {
-    select: async () => ({ data: null, error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    single: async () => ({ data: null, error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    upsert: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    insert: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    update: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    delete: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
-    eq: function () { return this },
-  }
-}
-
-export const supabaseAdmin = hasSupabase
-  ? createSupabaseClient(supabaseUrl!, supabaseServiceKey!, {
-      realtime: { enabled: false },
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-  : ({
-      from: (_: string) => createDummyTable(),
-    } as any)
+export const supabaseAdmin = createServerClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    cookies: {
+      getAll() {
+        return []
+      },
+      setAll() {
+        // Admin client doesn't need cookie handling
+      },
+    },
+  },
+)
