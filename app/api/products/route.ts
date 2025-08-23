@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const supabase = createClient()
-
 function toSlug(s: string) {
   return (s || "")
     .toString()
@@ -13,7 +11,7 @@ function toSlug(s: string) {
     .replace(/^-+|-+$/g, "")
 }
 
-async function generateUniqueSlug(baseSlug: string): Promise<string> {
+async function generateUniqueSlug(baseSlug: string, supabase: any): Promise<string> {
   let slug = baseSlug
   let counter = 1
 
@@ -31,6 +29,7 @@ async function generateUniqueSlug(baseSlug: string): Promise<string> {
 
 export async function GET(req: Request) {
   try {
+    const supabase = createClient()
     console.log("[v0] GET products request started")
 
     const url = new URL(req.url)
@@ -143,6 +142,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const supabase = createClient()
     const body = await req.json().catch(() => ({}))
 
     if (!body.category_id) {
@@ -165,7 +165,7 @@ export async function POST(req: Request) {
     const price: number = body.price || 0
     const category_id: number = body.category_id
     const baseSlug: string = body.slug || toSlug(name)
-    const slug: string = await generateUniqueSlug(baseSlug)
+    const slug: string = await generateUniqueSlug(baseSlug, supabase)
     const sku: string = body.sku || ""
 
     const image_url: string = body.thumbnailUrl || body.image_url || ""

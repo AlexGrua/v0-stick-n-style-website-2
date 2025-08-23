@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const supabase = createClient()
-
 function toSlug(s: string) {
   return (s || "")
     .toString()
@@ -15,6 +13,7 @@ function toSlug(s: string) {
 
 export async function GET() {
   try {
+    const supabase = createClient()
     const { data: categories, error } = await supabase
       .from("categories")
       .select("*")
@@ -34,6 +33,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const supabase = createClient()
     const body = await req.json().catch(() => ({}))
 
     const name: string = (body.name || "").trim()
