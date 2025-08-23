@@ -1,63 +1,25 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 
 export type AuthUser = {
-  id: string
-  username: string
+  id?: string
+  username?: string
   email: string
-  phone?: string
-  messenger?: string
+  role?: "superadmin" | "admin" | "staff"
 }
 
 type AuthContextValue = {
   user: AuthUser | null
   login: (identifier: string, password: string) => Promise<{ ok: boolean; message?: string }>
-  register: (data: {
-    username: string
-    email: string
-    password: string
-    phone?: string
-    messenger?: string
-  }) => Promise<{ ok: boolean; message?: string }>
+  register: (data: { username: string; email: string; password: string; phone?: string; messenger?: string }) => Promise<{
+    ok: boolean
+    message?: string
+  }>
   logout: () => void
   updateProfile: (data: Partial<AuthUser>) => Promise<{ ok: boolean }>
-}
-
-const USERS_KEY = "sns_users"
-const CURRENT_KEY = "sns_user"
-
-type StoredUser = AuthUser & { password: string }
-
-function readUsers(): StoredUser[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = localStorage.getItem(USERS_KEY)
-    return raw ? (JSON.parse(raw) as StoredUser[]) : []
-  } catch {
-    return []
-  }
-}
-function writeUsers(users: StoredUser[]) {
-  if (typeof window === "undefined") return
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-function readCurrent(): AuthUser | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = localStorage.getItem(CURRENT_KEY)
-    return raw ? (JSON.parse(raw) as AuthUser) : null
-  } catch {
-    return null
-  }
-}
-function writeCurrent(user: AuthUser | null) {
-  if (typeof window === "undefined") return
-  if (user) localStorage.setItem(CURRENT_KEY, JSON.stringify(user))
-  else localStorage.removeItem(CURRENT_KEY)
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -67,79 +29,55 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
-    setUser(readCurrent())
+    ;(async () => {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" })
+        if (res.ok) {
+          const j = await res.json()
+          if (j?.data?.email) setUser({ email: j.data.email, role: j.data.role })
+        }
+      } catch {}
+    })()
   }, [])
 
   const login = useCallback(
     async (identifier: string, password: string) => {
-      const users = readUsers()
-      const found = users.find(
-        (u) =>
-          (u.username.toLowerCase() === identifier.toLowerCase() ||
-            u.email.toLowerCase() === identifier.toLowerCase()) &&
-          u.password === password,
-      )
-      if (!found) return { ok: false, message: "Неверный логин или пароль" }
-      const { password: _pw, ...publicUser } = found
-      writeCurrent(publicUser)
-      setUser(publicUser)
-      toast({ description: "Вы успешно вошли" })
-      return { ok: true }
+      try {
+        const res = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: identifier, password }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.success) return { ok: false, message: data?.error || "Ошибка входа" }
+        setUser({ email: data.data.email, role: data.data.role })
+        toast({ description: "Вы успешно вошли" })
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, message: e?.message || "Ошибка входа" }
+      }
     },
     [toast],
   )
 
   const register = useCallback(
-    async (data: { username: string; email: string; password: string; phone?: string; messenger?: string }) => {
-      const users = readUsers()
-      const exists =
-        users.some((u) => u.username.toLowerCase() === data.username.toLowerCase()) ||
-        users.some((u) => u.email.toLowerCase() === data.email.toLowerCase())
-      if (exists) return { ok: false, message: "Логин или email уже используются" }
-
-      const newUser: StoredUser = {
-        id: crypto.randomUUID(),
-        username: data.username,
-        email: data.email,
-        phone: data.phone,
-        messenger: data.messenger,
-        password: data.password,
-      }
-      writeUsers([...users, newUser])
-      const { password: _pw, ...publicUser } = newUser
-      writeCurrent(publicUser)
-      setUser(publicUser)
-      toast({ description: "Регистрация выполнена" })
+    async (data: { username: string; email: string; password: string }) => {
+      // For MVP: register is login if dev fallback
+      const res = await login(data.email, data.password)
+      if (!res.ok) return { ok: false, message: res.message }
       return { ok: true }
     },
-    [toast],
+    [login],
   )
 
   const logout = useCallback(() => {
-    writeCurrent(null)
-    setUser(null)
-    toast({ description: "Вы вышли из аккаунта" })
+    fetch("/api/auth/session", { method: "DELETE" }).finally(() => {
+      setUser(null)
+      toast({ description: "Вы вышли из аккаунта" })
+    })
   }, [toast])
 
-  const updateProfile = useCallback(
-    async (data: Partial<AuthUser>) => {
-      if (!user) return { ok: false }
-      const nextUser = { ...user, ...data }
-      // persist current
-      writeCurrent(nextUser)
-      setUser(nextUser)
-      // update in list
-      const list = readUsers()
-      const idx = list.findIndex((u) => u.id === user.id)
-      if (idx !== -1) {
-        const prev = list[idx]
-        list[idx] = { ...prev, ...nextUser }
-        writeUsers(list)
-      }
-      return { ok: true }
-    },
-    [user],
-  )
+  const updateProfile = useCallback(async () => ({ ok: true }), [])
 
   const value: AuthContextValue = useMemo(
     () => ({ user, login, register, logout, updateProfile }),

@@ -21,6 +21,7 @@ import {
   Languages,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAuth } from "@/components/auth/auth-provider"
 
 type NavItem = { href: string; label: string; icon?: React.ComponentType<any> }
 type NavGroup = { label: string; items: NavItem[] }
@@ -80,6 +81,24 @@ const groups: NavGroup[] = [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  function filterByRole(all: NavGroup[]): NavGroup[] {
+    const role = user?.role || "staff"
+    if (role === "superadmin" || role === "admin") return all
+    // staff: Dashboard + Orders
+    return all
+      .map((g) => {
+        if (g.label === "Dashboard") return g
+        if (g.label === "Content Management") {
+          return { label: g.label, items: g.items.filter((i) => i.href === "/admin/orders") }
+        }
+        return { label: g.label, items: [] }
+      })
+      .filter((g) => g.items.length > 0)
+  }
+
+  const visibleGroups = filterByRole(groups)
 
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[256px_1fr]">
@@ -87,7 +106,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 text-lg font-semibold">Create&apos;N&apos;Order Admin</div>
         <ScrollArea className="h-[calc(100vh-64px)] pr-1">
           <nav className="grid gap-6 pb-6">
-            {groups.map((g) => (
+            {visibleGroups.map((g) => (
               <div key={g.label} className="px-3">
                 <div className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {g.label}
