@@ -29,8 +29,7 @@ export default function AdminLoginPage() {
       })
       const data = await res.json()
       if (!res.ok || !data?.success) throw new Error(data?.error || "Login failed")
-      // Force full reload so Set-Cookie is applied before hitting /admin
-      window.location.href = returnTo
+      router.push(returnTo)
     } catch (e: any) {
       setError(e?.message || "Login failed")
     } finally {

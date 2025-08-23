@@ -4,21 +4,20 @@ import { createClient } from "@/lib/supabase/server"
 
 const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 
-function ok(data: any, res?: NextResponse) {
-  return (res ?? NextResponse.json({ success: true, data }))
+function ok(data: any, setCookie?: string) {
+  const res = NextResponse.json({ success: true, data })
+  if (setCookie) res.headers.set("Set-Cookie", setCookie)
+  return res
 }
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status })
 }
 
-function setSessionCookies(res: NextResponse, role: string, email: string) {
-  const isProd = process.env.NODE_ENV === "production"
+function makeCookie(payload: { email: string; role: string }) {
+  const value = encodeURIComponent(JSON.stringify(payload))
+  // 7 days
   const maxAge = 7 * 24 * 60 * 60
-  res.cookies.set("sns_auth", "1", { path: "/", httpOnly: true, sameSite: "lax", secure: isProd, maxAge })
-  // role cookie is httpOnly as well
-  res.cookies.set("sns_role", role, { path: "/", httpOnly: true, sameSite: "lax", secure: isProd, maxAge })
-  // optional: public hint (non-HttpOnly) if needed by client UI
-  res.cookies.set("sns_user", encodeURIComponent(email), { path: "/", httpOnly: false, sameSite: "lax", secure: isProd, maxAge })
+  return `sns_auth=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`
 }
 
 export async function POST(request: Request) {
@@ -32,30 +31,30 @@ export async function POST(request: Request) {
       const supabase = createClient()
       const { data, error } = await (supabase as any).auth.signInWithPassword({ email, password })
       if (error) {
+        // Demo fallback: allow admin@example.com / admin123 even if Supabase user is missing
         if (email === "admin@example.com" && password === "admin123") {
-          const res = NextResponse.json({ success: true, data: { email, role: "superadmin" } })
-          setSessionCookies(res, "superadmin", email)
-          return res
+          const setCookie = makeCookie({ email, role: "superadmin" })
+          return ok({ email, role: "superadmin" }, setCookie)
         }
         return fail("Invalid credentials", 401)
       }
+      // fetch role from profiles table if exists, otherwise default admin
       let role = "admin"
       try {
         const { data: prof } = await (supabase as any).from("profiles").select("role").eq("id", data.user.id).single()
         if (prof?.role) role = String(prof.role)
       } catch {}
-      const res = NextResponse.json({ success: true, data: { email, role } })
-      setSessionCookies(res, role, email)
-      return res
+      const setCookie = makeCookie({ email, role })
+      return ok({ email, role }, setCookie)
     }
 
-    // Dev fallback
+    // Fallback (dev): simple canned users
     let role = "staff"
     if (email === "admin@example.com" && password === "admin123") role = "superadmin"
+    else if (password === "demo123") role = "staff"
     else if (password === "admin123") role = "admin"
-    const res = NextResponse.json({ success: true, data: { email, role } })
-    setSessionCookies(res, role, email)
-    return res
+    const setCookie = makeCookie({ email, role })
+    return ok({ email, role }, setCookie)
   } catch (e: any) {
     return fail(e?.message || "Login failed", 500)
   }
@@ -63,18 +62,18 @@ export async function POST(request: Request) {
 
 export async function GET() {
   const c = await cookies()
-  const auth = c.get("sns_auth")?.value
-  const role = c.get("sns_role")?.value
-  const email = c.get("sns_user")?.value
-  if (!auth) return NextResponse.json({ success: true, data: null })
-  return NextResponse.json({ success: true, data: { email: email ? decodeURIComponent(email) : undefined, role } })
+  const raw = c.get("sns_auth")?.value
+  if (!raw) return ok(null)
+  try {
+    const data = JSON.parse(decodeURIComponent(raw))
+    return ok(data)
+  } catch {
+    return ok(null)
+  }
 }
 
 export async function DELETE() {
-  const isProd = process.env.NODE_ENV === "production"
-  const res = NextResponse.json({ success: true, data: {} })
-  res.cookies.set("sns_auth", "", { path: "/", httpOnly: true, sameSite: "lax", secure: isProd, maxAge: 0 })
-  res.cookies.set("sns_role", "", { path: "/", httpOnly: true, sameSite: "lax", secure: isProd, maxAge: 0 })
-  res.cookies.set("sns_user", "", { path: "/", httpOnly: false, sameSite: "lax", secure: isProd, maxAge: 0 })
+  const res = ok({})
+  res.headers.set("Set-Cookie", "sns_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
   return res
 }
