@@ -15,9 +15,10 @@ function fail(message: string, status = 400) {
 
 function makeCookie(payload: { email: string; role: string }) {
   const value = encodeURIComponent(JSON.stringify(payload))
+  const isProd = process.env.NODE_ENV === "production"
   // 7 days
   const maxAge = 7 * 24 * 60 * 60
-  return `sns_auth=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`
+  return `sns_auth=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${isProd ? "; Secure" : ""}`
 }
 
 export async function POST(request: Request) {
@@ -74,6 +75,7 @@ export async function GET() {
 
 export async function DELETE() {
   const res = ok({})
-  res.headers.set("Set-Cookie", "sns_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+  const isProd = process.env.NODE_ENV === "production"
+  res.headers.set("Set-Cookie", `sns_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${isProd ? "; Secure" : ""}`)
   return res
 }
