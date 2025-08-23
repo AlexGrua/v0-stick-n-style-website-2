@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 
-export default function AdminLoginPage() {
+function LoginInner() {
   const router = useRouter()
   const params = useSearchParams()
   const returnTo = params.get("returnTo") || "/admin"
@@ -69,12 +69,18 @@ export default function AdminLoginPage() {
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? "Signing in…" : "Sign In"}
             </Button>
-            <div className="text-[12px] text-muted-foreground">
-              Demo: admin@example.com / admin123 (superadmin)
-            </div>
+            <div className="text-[12px] text-muted-foreground">Demo: admin@example.com / admin123 (superadmin)</div>
           </form>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen grid place-items-center bg-white" />}> 
+      <LoginInner />
+    </Suspense>
   )
 }
