@@ -45,4 +45,5 @@ export type PublicUser = Omit<User, "passwordHash">
 export type StoredUser = PublicUser & {
   passwordHash: string
   resetCode?: string
+  isMainSuperadmin?: boolean
 }

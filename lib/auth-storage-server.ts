@@ -265,9 +265,17 @@ export async function serverCreateUser(input: {
 export function serverUpdateUserRole(id: string, newRole: Role): { ok: boolean; error?: string } {
   const idx = serverUsers.findIndex((u) => u.id === id)
   if (idx === -1) return { ok: false, error: "Пользователь не найден" }
-  if (serverUsers[idx].role === "superadmin") {
-    return { ok: false, error: "Нельзя изменить роль суперадмина" }
+  
+  // Защита главного суперадмина
+  if (serverUsers[idx].isMainSuperadmin) {
+    return { ok: false, error: "Нельзя изменить роль главного суперадмина" }
   }
+  
+  // Защита от понижения суперадмина до обычного админа
+  if (serverUsers[idx].role === "superadmin" && newRole !== "superadmin") {
+    return { ok: false, error: "Нельзя понизить роль суперадмина" }
+  }
+  
   serverUsers[idx].role = newRole
   serverUsers[idx].permissions = getDefaultPermissionsForRole(newRole)
   serverUsers[idx].updatedAt = new Date().toISOString()
@@ -278,9 +286,15 @@ export function serverUpdateUserRole(id: string, newRole: Role): { ok: boolean; 
   return { ok: true }
 }
 
-export function serverSetActive(id: string, active: boolean): { ok: boolean } {
+export function serverSetActive(id: string, active: boolean): { ok: boolean; error?: string } {
   const idx = serverUsers.findIndex((u) => u.id === id)
-  if (idx === -1) return { ok: false }
+  if (idx === -1) return { ok: false, error: "Пользователь не найден" }
+  
+  // Защита главного суперадмина
+  if (serverUsers[idx].isMainSuperadmin) {
+    return { ok: false, error: "Нельзя деактивировать главного суперадмина" }
+  }
+  
   serverUsers[idx].active = active
   serverUsers[idx].updatedAt = new Date().toISOString()
   
@@ -290,21 +304,40 @@ export function serverSetActive(id: string, active: boolean): { ok: boolean } {
   return { ok: true }
 }
 
-export function serverDeleteUser(id: string): { ok: boolean } {
+export function serverDeleteUser(id: string): { ok: boolean; deletedUserEmail?: string; error?: string } {
+  const userToDelete = serverUsers.find((u) => u.id === id)
+  if (!userToDelete) {
+    return { ok: false, error: "Пользователь не найден" }
+  }
+  
+  // Защита главного суперадмина
+  if (userToDelete.isMainSuperadmin) {
+    return { ok: false, error: "Нельзя удалить главного суперадмина" }
+  }
+  
+  const deletedUserEmail = userToDelete.email
   serverUsers = serverUsers.filter((u) => u.id !== id)
   
   // Сохраняем в файл
   saveUsersToFile(serverUsers)
   
-  return { ok: true }
+  return { ok: true, deletedUserEmail }
 }
 
 export function serverUpdateUserPermissions(id: string, permissions: Permission[]): { ok: boolean; error?: string } {
   const idx = serverUsers.findIndex((u) => u.id === id)
   if (idx === -1) return { ok: false, error: "Пользователь не найден" }
+  
+  // Защита главного суперадмина
+  if (serverUsers[idx].isMainSuperadmin) {
+    return { ok: false, error: "Нельзя изменять разрешения главного суперадмина" }
+  }
+  
+  // Защита суперадминов (но не главного)
   if (serverUsers[idx].role === "superadmin") {
     return { ok: false, error: "Нельзя изменять разрешения суперадмина" }
   }
+  
   serverUsers[idx].permissions = permissions
   serverUsers[idx].updatedAt = new Date().toISOString()
   

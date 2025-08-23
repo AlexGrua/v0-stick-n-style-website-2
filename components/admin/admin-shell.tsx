@@ -20,6 +20,7 @@ import {
   Search,
   Languages,
   LogOut,
+  Shield,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { hasPermission } from "@/lib/permissions"
 import type { Permission } from "@/types/auth"
 
-type NavItem = { href: string; label: string; icon?: React.ComponentType<any>; requiredPermission?: Permission }
+type NavItem = { href: string; label: string; icon?: React.ComponentType<any>; requiredPermission?: Permission; superadminOnly?: boolean }
 type NavGroup = { label: string; items: NavItem[] }
 
 const groups: NavGroup[] = [
@@ -80,6 +81,7 @@ const groups: NavGroup[] = [
       { href: "/admin/attributes", label: "Attributes", icon: Tags, requiredPermission: "attributes.view" },
       { href: "/admin/containers", label: "Containers", icon: Boxes, requiredPermission: "containers.view" },
       { href: "/admin/database", label: "Database", icon: Database, requiredPermission: "settings.view" },
+      { href: "/admin/audit-logs", label: "Audit Logs", icon: Shield, superadminOnly: true },
     ],
   },
 ]
@@ -92,8 +94,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     return all.map((group) => ({
       label: group.label,
       items: group.items.filter((item) => {
-        if (!item.requiredPermission) return true
-        return hasPermission(user, item.requiredPermission)
+        // Superadmin only items
+        if (item.superadminOnly && user?.role !== 'superadmin') return false
+        
+        // Permission-based items
+        if (item.requiredPermission) {
+          return hasPermission(user, item.requiredPermission)
+        }
+        
+        return true
       })
     })).filter((group) => group.items.length > 0)
   }

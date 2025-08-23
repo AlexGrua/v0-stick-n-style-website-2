@@ -399,27 +399,34 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td>
-                      <Select 
-                        value={user.role} 
-                        onValueChange={(value: 'superadmin' | 'admin' | 'staff') => updateUserRole(user.id, value)}
-                        disabled={user.role === 'superadmin'}
-                      >
-                        <SelectTrigger className="w-24">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="staff">Staff</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="superadmin">Super</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select 
+                          value={user.role} 
+                          onValueChange={(value: 'superadmin' | 'admin' | 'staff') => updateUserRole(user.id, value)}
+                          disabled={user.role === 'superadmin'}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="superadmin">Super</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {(user as any).isMainSuperadmin && (
+                          <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                            Main
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
                         <Switch
                           checked={user.active}
                           onCheckedChange={(checked) => toggleUserActive(user.id, checked)}
-                          disabled={user.role === 'superadmin'}
+                          disabled={user.role === 'superadmin' || (user as any).isMainSuperadmin}
                         />
                         <Badge variant={user.active ? "default" : "secondary"}>
                           {user.active ? 'Active' : 'Inactive'}
@@ -453,14 +460,14 @@ export default function UsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setShowPermissionsModal(user.id)} disabled={user.role === 'superadmin'}>
+                          <DropdownMenuItem onClick={() => setShowPermissionsModal(user.id)} disabled={user.role === 'superadmin' || (user as any).isMainSuperadmin}>
                             <Settings className="mr-2 h-4 w-4" />
                             Edit Permissions
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => resetPermissions(user.id, user.role)} disabled={user.role === 'superadmin'}>
+                          <DropdownMenuItem onClick={() => resetPermissions(user.id, user.role)} disabled={user.role === 'superadmin' || (user as any).isMainSuperadmin}>
                             Reset Permissions
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteUser(user.id)} disabled={user.role === 'superadmin'} className="text-red-600">
+                          <DropdownMenuItem onClick={() => deleteUser(user.id)} disabled={user.role === 'superadmin' || (user as any).isMainSuperadmin} className="text-red-600">
                             Delete User
                           </DropdownMenuItem>
                         </DropdownMenuContent>

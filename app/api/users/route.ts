@@ -7,6 +7,7 @@ import {
   serverSetActive, 
   serverUpdateUserPermissions 
 } from '@/lib/auth-storage-server'
+import { auditLogger } from '@/lib/audit-logger'
 import type { Role, Permission } from '@/types/auth'
 
 function ok(data: any) {
@@ -42,6 +43,18 @@ export async function POST(request: NextRequest) {
     const result = await serverCreateUser(body)
     
     if (result.ok) {
+      // Get user ID by email for logging
+      const users = serverGetAllUsers()
+      const currentUser = users.find(u => u.email === authResult.user.email)
+      
+      // Log user creation
+      await auditLogger.userCreated(
+        currentUser?.id || 'unknown',
+        result.user.id,
+        result.user.email,
+        request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        request.headers.get('user-agent')
+      )
       return NextResponse.json({ user: result.user })
     } else {
       return fail(result.error)
@@ -66,6 +79,19 @@ export async function PUT(request: NextRequest) {
       case "updateRole":
         const roleResult = serverUpdateUserRole(userId, data.role as Role)
         if (roleResult.ok) {
+          // Get user ID by email for logging
+          const users = serverGetAllUsers()
+          const currentUser = users.find(u => u.email === authResult.user.email)
+          
+          // Log role change
+          await auditLogger.roleChanged(
+            currentUser?.id || 'unknown',
+            userId,
+            data.targetUserEmail || 'Unknown',
+            { before: data.oldRole, after: data.role },
+            request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+            request.headers.get('user-agent')
+          )
           return ok({ message: "Role updated successfully" })
         } else {
           return fail(roleResult.error || "Failed to update role")
@@ -74,14 +100,40 @@ export async function PUT(request: NextRequest) {
       case "setActive":
         const activeResult = serverSetActive(userId, data.active as boolean)
         if (activeResult.ok) {
+          // Get user ID by email for logging
+          const users = serverGetAllUsers()
+          const currentUser = users.find(u => u.email === authResult.user.email)
+          
+          // Log user status change
+          await auditLogger.userUpdated(
+            currentUser?.id || 'unknown',
+            userId,
+            data.targetUserEmail || 'Unknown',
+            { before: { active: !data.active }, after: { active: data.active } },
+            request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+            request.headers.get('user-agent')
+          )
           return ok({ message: "User status updated successfully" })
         } else {
-          return fail("Failed to update user status")
+          return fail(activeResult.error || "Failed to update user status")
         }
         
       case "updatePermissions":
         const permResult = serverUpdateUserPermissions(userId, data.permissions as Permission[])
         if (permResult.ok) {
+          // Get user ID by email for logging
+          const users = serverGetAllUsers()
+          const currentUser = users.find(u => u.email === authResult.user.email)
+          
+          // Log permissions change
+          await auditLogger.permissionsChanged(
+            currentUser?.id || 'unknown',
+            userId,
+            data.targetUserEmail || 'Unknown',
+            { before: data.oldPermissions, after: data.permissions },
+            request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+            request.headers.get('user-agent')
+          )
           return ok({ message: "Permissions updated successfully" })
         } else {
           return fail(permResult.error || "Failed to update permissions")
