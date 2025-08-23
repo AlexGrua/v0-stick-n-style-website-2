@@ -30,7 +30,14 @@ export async function POST(request: Request) {
     if (hasSupabase) {
       const supabase = createClient()
       const { data, error } = await (supabase as any).auth.signInWithPassword({ email, password })
-      if (error) return fail("Invalid credentials", 401)
+      if (error) {
+        // Demo fallback: allow admin@example.com / admin123 even if Supabase user is missing
+        if (email === "admin@example.com" && password === "admin123") {
+          const setCookie = makeCookie({ email, role: "superadmin" })
+          return ok({ email, role: "superadmin" }, setCookie)
+        }
+        return fail("Invalid credentials", 401)
+      }
       // fetch role from profiles table if exists, otherwise default admin
       let role = "admin"
       try {
