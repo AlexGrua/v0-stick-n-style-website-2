@@ -3,12 +3,14 @@
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import type { Permission } from "@/types/auth"
 
 export type AuthUser = {
   id?: string
   username?: string
   email: string
   role?: "superadmin" | "admin" | "staff"
+  permissions?: Permission[]
 }
 
 type AuthContextValue = {
@@ -34,7 +36,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const res = await fetch("/api/auth/session", { cache: "no-store" })
         if (res.ok) {
           const j = await res.json()
-          if (j?.data?.email) setUser({ email: j.data.email, role: j.data.role })
+          if (j?.data?.email) setUser({ 
+            email: j.data.email, 
+            role: j.data.role,
+            permissions: j.data.permissions || []
+          })
         }
       } catch {}
     })()
@@ -50,7 +56,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         })
         const data = await res.json()
         if (!res.ok || !data?.success) return { ok: false, message: data?.error || "Ошибка входа" }
-        setUser({ email: data.data.email, role: data.data.role })
+        setUser({ 
+          email: data.data.email, 
+          role: data.data.role,
+          permissions: data.data.permissions || []
+        })
         toast({ description: "Вы успешно вошли" })
         return { ok: true }
       } catch (e: any) {
@@ -74,6 +84,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     fetch("/api/auth/session", { method: "DELETE" }).finally(() => {
       setUser(null)
       toast({ description: "Вы вышли из аккаунта" })
+      // Перенаправляем на страницу логина
+      window.location.href = "/admin/login"
     })
   }, [toast])
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { Page } from "@/lib/types"
+import { requireRole } from "@/lib/api/guard"
 
 const KEY = "__PAGES_IN_MEMORY__"
 
@@ -53,6 +54,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 // PUT /api/pages/:id
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const store = getStore()
   const body = (await req.json()) as Partial<Page>
@@ -75,7 +81,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 // DELETE /api/pages/:id
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const store = getStore()
   const idx = findIndex(params.id)

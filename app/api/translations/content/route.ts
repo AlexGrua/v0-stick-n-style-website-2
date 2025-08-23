@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { requireRole } from "@/lib/api/guard"
 
 const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 const memoryStore: { content_translations?: Record<string, Record<string, Record<string, Record<string, { value: string; status?: "machine" | "reviewed" }>>>> } =
@@ -44,6 +45,11 @@ export async function GET(request: Request) {
 // PUT body: { entityType: string, entityId: string, entries: { [fieldPath]: { [lang]: { value, status } } } }
 export async function PUT(request: Request) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await request.json()
     const entityType = String(body?.entityType || "").trim()
     const entityId = String(body?.entityId || "").trim()

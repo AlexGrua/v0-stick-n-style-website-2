@@ -1,7 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { requireRole } from "@/lib/api/guard"
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const formData = await request.formData()
     const file = formData.get("file") as File
 

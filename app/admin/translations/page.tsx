@@ -33,12 +33,28 @@ export default function TranslationsPage() {
 
   const keys = Object.keys(translations).filter((k) => (filter ? k.toLowerCase().includes(filter.toLowerCase()) : true))
 
+  // Функция для получения токена из cookies
+  function getAuthToken() {
+    const cookies = document.cookie.split(';');
+    const snsAuthCookie = cookies.find(cookie => cookie.trim().startsWith('sns_auth='));
+    if (snsAuthCookie) {
+      const token = snsAuthCookie.split('=')[1];
+      return decodeURIComponent(token);
+    }
+    return null;
+  }
+
   async function save() {
     setSaving(true)
     try {
+      const token = getAuthToken();
       const res = await fetch("/api/translations/ui", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        credentials: "include",
         body: JSON.stringify({ translations }),
       })
       if (!res.ok) throw new Error("Save failed")
@@ -53,7 +69,10 @@ export default function TranslationsPage() {
       const to = langs.filter((l) => l !== "en")
       const res = await fetch("/api/translations/auto", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        credentials: "include",
         body: JSON.stringify({ to }),
       })
       if (!res.ok) throw new Error("Auto-translate failed")

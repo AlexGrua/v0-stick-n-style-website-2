@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getHomePageData, saveHomePageData } from "@/lib/db"
+import { requireRole } from "@/lib/api/guard"
 
 export async function GET() {
   try {
@@ -13,6 +14,11 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const updates = await req.json()
     const now = new Date().toISOString()
 
@@ -44,6 +50,11 @@ export async function PUT(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const { blockType, blockData } = await req.json()
     const now = new Date().toISOString()
 

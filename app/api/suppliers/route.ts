@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { requirePermission } from "@/lib/api/guard"
 
 const supabase = createClient()
 
@@ -51,6 +52,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const guard = requirePermission(request, "suppliers.create")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const payload = await request.json()
 
     if (!payload.companyName && !payload.shortName) {

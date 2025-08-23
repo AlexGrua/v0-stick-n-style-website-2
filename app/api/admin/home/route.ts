@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { listHome, setDraftBlocks, updateMeta, publishDraft } from "@/lib/home-cms"
+import { requireRole } from "@/lib/api/guard"
 
 // GET: returns the page model (draft and published refs)
 export async function GET() {
@@ -9,6 +10,11 @@ export async function GET() {
 
 // PUT: update meta or bulk save blocks
 export async function PUT(req: Request) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   const body = await req.json().catch(() => ({}))
   if (Array.isArray(body?.blocks)) {
     const page = setDraftBlocks(body.blocks)
@@ -23,6 +29,11 @@ export async function PUT(req: Request) {
 
 // POST: { action: "publish" }
 export async function POST(req: Request) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   const body = await req.json().catch(() => ({}))
   if (body?.action === "publish") {
     const page = publishDraft()

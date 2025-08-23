@@ -1,6 +1,7 @@
 "use client"
 
-import type { PublicUser, StoredUser } from "@/types/auth"
+import type { PublicUser, StoredUser, Role, Permission } from "@/types/auth"
+import { getDefaultPermissionsForRole } from "./permissions"
 
 const LS_USERS_KEY = "sns.users"
 const LS_SESSION_KEY = "sns.sessionUserId"
@@ -62,7 +63,8 @@ export async function ensureSeedAdmin() {
       email: "admin@example.com",
       phone: "",
       messenger: "",
-      role: "admin",
+      role: "superadmin",
+      permissions: getDefaultPermissionsForRole("superadmin"),
       active: true,
       createdAt: nowISO(),
       updatedAt: nowISO(),
@@ -99,7 +101,8 @@ export async function registerUser(input: {
     email: email.trim(),
     phone: phone?.trim(),
     messenger: messenger?.trim(),
-    role: "user",
+    role: "staff",
+    permissions: getDefaultPermissionsForRole("staff"),
     active: true,
     createdAt: nowISO(),
     updatedAt: nowISO(),
@@ -237,6 +240,62 @@ export function adminSetActive(id: string, active: boolean): { ok: boolean } {
   return { ok: true }
 }
 
+export function adminChangeRole(id: string, newRole: Role): { ok: boolean; error?: string } {
+  const users = readUsers()
+  const idx = users.findIndex((u) => u.id === id)
+  if (idx === -1) return { ok: false, error: "Пользователь не найден" }
+  
+  // Проверяем, что не пытаемся изменить роль суперадмина
+  if (users[idx].role === "superadmin") {
+    return { ok: false, error: "Нельзя изменить роль суперадмина" }
+  }
+  
+  users[idx].role = newRole
+  users[idx].updatedAt = nowISO()
+  writeUsers(users)
+  return { ok: true }
+}
+
+export async function adminCreateUser(input: {
+  username: string
+  email: string
+  password: string
+  role: Role
+  phone?: string
+  messenger?: string
+}): Promise<{ ok: true; user: PublicUser } | { ok: false; error: string }> {
+  const { username, email, password, role, phone, messenger } = input
+  const users = readUsers()
+
+  if (!username.trim() || !email.trim() || !password.trim()) {
+    return { ok: false, error: "Заполните обязательные поля." }
+  }
+
+  // Проверяем уникальность
+  const exists =
+    users.find((u) => u.username.toLowerCase() === username.toLowerCase()) ||
+    users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+  if (exists) return { ok: false, error: "Такой логин или email уже зарегистрирован." }
+
+  // Создаем пользователя
+  const passwordHash = await hashPassword(password)
+  const u: StoredUser = {
+    id: crypto.randomUUID(),
+    username: username.trim(),
+    email: email.trim(),
+    phone: phone?.trim(),
+    messenger: messenger?.trim(),
+    role,
+    permissions: getDefaultPermissionsForRole(role),
+    active: true,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    passwordHash,
+  }
+  writeUsers([...users, u])
+  return { ok: true, user: toPublic(u) }
+}
+
 export function adminDeleteUser(id: string): { ok: boolean } {
   const users = readUsers().filter((u) => u.id !== id)
   writeUsers(users)
@@ -245,3 +304,50 @@ export function adminDeleteUser(id: string): { ok: boolean } {
   if (cur === id) setSessionUserId(null)
   return { ok: true }
 }
+
+// Импортируем функции разрешений из серверного файла
+import { hasPermission as hasPermissionServer, hasAnyPermission as hasAnyPermissionServer } from "./permissions"
+
+// Клиентские обертки для функций разрешений
+export function hasPermission(user: PublicUser | null, permission: Permission): boolean {
+  return hasPermissionServer(user, permission)
+}
+
+export function hasPermissionForAuthUser(user: { role?: string; permissions?: Permission[] } | null, permission: Permission): boolean {
+  return hasPermissionServer(user, permission)
+}
+
+export function hasAnyPermission(user: PublicUser | null, permissions: Permission[]): boolean {
+  return hasAnyPermissionServer(user, permissions)
+}
+
+// Функции для управления разрешениями
+export function adminUpdateUserPermissions(id: string, permissions: Permission[]): { ok: boolean; error?: string } {
+  const users = readUsers()
+  const idx = users.findIndex((u) => u.id === id)
+  if (idx === -1) return { ok: false, error: "Пользователь не найден" }
+  if (users[idx].role === "superadmin") {
+    return { ok: false, error: "Нельзя изменять разрешения суперадмина" }
+  }
+  users[idx].permissions = permissions
+  users[idx].updatedAt = nowISO()
+  writeUsers(users)
+  return { ok: true }
+}
+
+export function adminUpdateUserRole(id: string, newRole: Role): { ok: boolean; error?: string } {
+  const users = readUsers()
+  const idx = users.findIndex((u) => u.id === id)
+  if (idx === -1) return { ok: false, error: "Пользователь не найден" }
+  if (users[idx].role === "superadmin") {
+    return { ok: false, error: "Нельзя изменить роль суперадмина" }
+  }
+  users[idx].role = newRole
+  users[idx].permissions = getDefaultPermissionsForRole(newRole) // Обновляем разрешения по новой роли
+  users[idx].updatedAt = nowISO()
+  writeUsers(users)
+  return { ok: true }
+}
+
+// Экспортируем функцию из серверного файла
+export { getAllPermissions } from "./permissions"

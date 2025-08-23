@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { requireRole } from "@/lib/api/guard"
 
 const memStore: Record<string, any> = {}
 
@@ -58,6 +59,11 @@ export async function GET(request: NextRequest, { params }: { params: { key: str
 
 export async function PUT(request: NextRequest, { params }: { params: { key: string } }) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const supabase = createClient()
     const { key } = params
     const requestData = await request.json()

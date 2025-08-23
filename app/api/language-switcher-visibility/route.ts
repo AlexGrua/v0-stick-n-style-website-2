@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
+import { requireRole } from "@/lib/api/guard"
 
 export async function GET() {
   try {
@@ -38,6 +39,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const { visible } = await request.json()
     console.log("[v0] Setting language switcher visibility to:", visible)
 

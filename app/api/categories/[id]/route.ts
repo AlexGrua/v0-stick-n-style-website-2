@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCategoryById, updateCategory, deleteCategory } from "@/lib/db"
+import { requireRole } from "@/lib/api/guard"
 
 function toSlug(s: string) {
   return (s || "")
@@ -41,6 +42,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     console.log("[v0] Starting PUT request for category ID:", params.id)
 
     const patch = await req.json().catch((err) => {
@@ -80,8 +86,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const success = await deleteCategory(params.id)
 
     if (!success) {

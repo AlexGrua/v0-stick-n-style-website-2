@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { requireRole } from "@/lib/api/guard"
+import { requirePermission } from "@/lib/api/guard"
 
 function toSlug(s: string) {
   return (s || "")
@@ -143,7 +143,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const guard = requireRole(req, "admin")
+    const guard = requirePermission(req, "products.create")
     if (!guard.ok) return NextResponse.json({ error: guard.message }, { status: guard.status })
 
     const supabase = createClient()

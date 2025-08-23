@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { requireRole } from "@/lib/api/guard"
 
 // In-memory fallback when Supabase env is not configured
 const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -59,6 +60,11 @@ export async function GET() {
 // PUT body: { translations: { [key]: { [lang]: { value, status } } } }
 export async function PUT(request: Request) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await request.json()
     const incoming = (body?.translations || {}) as Record<string, Record<string, { value: string; status?: "machine" | "reviewed" }>>
 

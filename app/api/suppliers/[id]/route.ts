@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireRole } from "@/lib/api/guard"
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -36,6 +37,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
 export async function PUT(request: Request, ctx: RouteContext) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const patch = await request.json()
 
     // Маппинг данных из frontend в БД формат
@@ -87,8 +93,13 @@ export async function PUT(request: Request, ctx: RouteContext) {
   }
 }
 
-export async function DELETE(_req: Request, ctx: RouteContext) {
+export async function DELETE(req: Request, ctx: RouteContext) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const { error } = await supabase.from("suppliers").delete().eq("id", ctx.params.id)
 
     if (error) {

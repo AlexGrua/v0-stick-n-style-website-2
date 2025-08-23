@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { requireRole } from "@/lib/api/guard"
 
 function fallbackLanguages() {
   return [
@@ -31,6 +32,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     console.log("[v0] POST languages request started")
     const body = await request.json()
     const supabase = createClient()
@@ -52,6 +58,11 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     console.log("[v0] PUT languages request started")
     const body = await request.json()
     const { languages, showLanguageSwitcher } = body
@@ -102,7 +113,6 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    console.log("[v0] Languages updated successfully")
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("[v0] Update languages error:", error)

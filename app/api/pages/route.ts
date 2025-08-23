@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { Page } from "@/lib/types"
+import { requireRole } from "@/lib/api/guard"
 
 const KEY = "__PAGES_IN_MEMORY__"
 
@@ -114,6 +115,11 @@ export async function GET(req: Request) {
 
 // POST /api/pages — create a new page
 export async function POST(req: Request) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const store = getStore()
   const body = (await req.json()) as Partial<Page>

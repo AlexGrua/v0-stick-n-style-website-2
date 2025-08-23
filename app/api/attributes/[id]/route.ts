@@ -1,8 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { db, seed } from "@/lib/db"
 import type { Attribute } from "@/lib/types"
+import { requireRole } from "@/lib/api/guard"
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const state = db()
   const idx = state.attributes.findIndex((a) => a.id === params.id)
@@ -21,7 +27,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const state = db()
   const idx = state.attributes.findIndex((a) => a.id === params.id)

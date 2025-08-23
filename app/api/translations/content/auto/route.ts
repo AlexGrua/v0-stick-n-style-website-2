@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { translateBatch } from "@/lib/translator"
+import { requireRole } from "@/lib/api/guard"
 
 // Storage shape: { [entityType]: { [entityId]: { [fieldPath]: { [lang]: { value, status } } } } }
 
@@ -19,6 +20,11 @@ function fail(message: string, status = 500) {
 
 export async function POST(request: Request) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await request.json()
     const entityType = String(body?.entityType || "").trim()
     const entityId = String(body?.entityId || "").trim()

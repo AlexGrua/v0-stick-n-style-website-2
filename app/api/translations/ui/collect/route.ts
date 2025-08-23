@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { translateBatch } from "@/lib/translator"
+import { requireRole } from "@/lib/api/guard"
 
 const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 const memoryStore: { ui_translations?: Record<string, Record<string, { value: string; status?: "machine" | "reviewed" }>>; languages?: string[] } =
@@ -9,6 +10,11 @@ const memoryStore: { ui_translations?: Record<string, Record<string, { value: st
 
 export async function POST(request: Request) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await request.json()
     const key = String(body?.key || "").trim()
     const en = String(body?.en || "").trim()

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getPublished, normalizeHome, setPublished } from "@/lib/home-content"
+import { requireRole } from "@/lib/api/guard"
 
 export async function GET() {
   // Return published snapshot (if any)
@@ -9,6 +10,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await req.json()
     const normalized = normalizeHome(body)
     const saved = setPublished(normalized)

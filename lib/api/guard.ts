@@ -1,4 +1,5 @@
-export type Role = "staff" | "admin" | "superadmin"
+import { cookies } from "next/headers"
+import type { Role, Permission } from "@/types/auth"
 
 function parseCookies(header: string | null): Record<string, string> {
   const out: Record<string, string> = {}
@@ -14,28 +15,99 @@ function parseCookies(header: string | null): Record<string, string> {
   return out
 }
 
-export function readAuthFromRequest(req: Request): { email?: string; role?: Role } | null {
+export type Role = "staff" | "admin" | "superadmin"
+
+export function readAuthFromRequest(req: Request): { email?: string; role?: Role; permissions?: Permission[] } | null {
+  // Сначала проверяем cookies
   const cookieHeader = req.headers.get("cookie")
   const jar = parseCookies(cookieHeader)
   const raw = jar["sns_auth"]
-  if (!raw) return null
-  try {
-    const data = JSON.parse(decodeURIComponent(raw))
-    return { email: data?.email, role: data?.role as Role }
-  } catch {
-    return null
+  if (raw) {
+    try {
+      const data = JSON.parse(decodeURIComponent(raw))
+      return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+    } catch (e) {
+      // Игнорируем ошибки парсинга cookies
+    }
   }
+  // Затем проверяем заголовок Authorization
+  const authHeader = req.headers.get("authorization")
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7)
+    try {
+      const data = JSON.parse(decodeURIComponent(token))
+      return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+    } catch {
+      // Игнорируем ошибки парсинга токена
+    }
+  }
+  return null
 }
 
-export function hasMinRole(userRole: Role | undefined, min: Role): boolean {
-  const order: Record<Role, number> = { staff: 0, admin: 1, superadmin: 2 }
-  const u = userRole ? order[userRole] ?? -1 : -1
-  return u >= order[min]
+export function requireRole(
+  request: Request,
+  minimumRole: Role,
+  requiredPermission?: Permission
+): { ok: true; user: { email: string; role: Role; permissions: Permission[] } } | { ok: false; message: string; status: number } {
+  const auth = readAuthFromRequest(request)
+  if (!auth?.email) {
+    return { ok: false, message: "Unauthorized", status: 401 }
+  }
+
+  const { email, role, permissions } = auth
+
+  // superadmin имеет все права
+  if (role === "superadmin") {
+    return { ok: true, user: { email, role, permissions: permissions || [] } }
+  }
+
+  // Проверяем роль
+  const roleHierarchy = { staff: 1, admin: 2, superadmin: 3 }
+  const userLevel = roleHierarchy[role] || 0
+  const requiredLevel = roleHierarchy[minimumRole] || 0
+
+  if (userLevel < requiredLevel) {
+    return { ok: false, message: "Insufficient role", status: 403 }
+  }
+
+  // Если требуется конкретное разрешение, проверяем его
+  if (requiredPermission && permissions) {
+    if (!permissions.includes(requiredPermission)) {
+      return { ok: false, message: "Insufficient permissions", status: 403 }
+    }
+  }
+
+  return { ok: true, user: { email, role, permissions: permissions || [] } }
 }
 
-export function requireRole(req: Request, min: Role = "admin"): { ok: true; role: Role } | { ok: false; status: number; message: string } {
-  const auth = readAuthFromRequest(req)
-  if (!auth?.role) return { ok: false, status: 401, message: "Unauthorized" }
-  if (!hasMinRole(auth.role, min)) return { ok: false, status: 403, message: "Forbidden" }
-  return { ok: true, role: auth.role }
+// Удобные функции для проверки конкретных разрешений
+export function requirePermission(
+  request: Request,
+  permission: Permission
+): { ok: true; user: { email: string; role: Role; permissions: Permission[] } } | { ok: false; message: string; status: number } {
+  return requireRole(request, "staff", permission)
+}
+
+export function requireAnyPermission(
+  request: Request,
+  permissions: Permission[]
+): { ok: true; user: { email: string; role: Role; permissions: Permission[] } } | { ok: false; message: string; status: number } {
+  const auth = readAuthFromRequest(request)
+  if (!auth?.email) {
+    return { ok: false, message: "Unauthorized", status: 401 }
+  }
+
+  const { email, role, permissions: userPermissions } = auth
+
+  // superadmin имеет все права
+  if (role === "superadmin") {
+    return { ok: true, user: { email, role, permissions: userPermissions || [] } }
+  }
+
+  // Проверяем, есть ли хотя бы одно из требуемых разрешений
+  if (userPermissions && permissions.some(permission => userPermissions.includes(permission))) {
+    return { ok: true, user: { email, role, permissions: userPermissions } }
+  }
+
+  return { ok: false, message: "Insufficient permissions", status: 403 }
 }

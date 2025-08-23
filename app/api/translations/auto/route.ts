@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { translateBatch } from "@/lib/translator"
 import type { LangCode } from "@/lib/i18n"
+import { requireRole } from "@/lib/api/guard"
 
 const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 const memoryStore: { ui_translations?: Record<string, Record<string, { value: string; status?: "machine" | "reviewed" }>> } =
@@ -10,6 +11,11 @@ const memoryStore: { ui_translations?: Record<string, Record<string, { value: st
 
 export async function POST(request: Request) {
   try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
     const body = await request.json()
     const to: LangCode[] = Array.isArray(body?.to) ? body.to : []
     if (!to.length) return NextResponse.json({ success: false, error: "Missing 'to' languages" }, { status: 400 })

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { db, seed } from "@/lib/db"
 import type { Attribute } from "@/lib/types"
+import { requireRole } from "@/lib/api/guard"
 
 function validate(body: any) {
   const errs: string[] = []
@@ -21,6 +22,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = requireRole(req, "admin")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const state = db()
   const body = await req.json()

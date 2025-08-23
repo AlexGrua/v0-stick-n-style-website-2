@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { db, seed } from "@/lib/db"
 import type { Settings } from "@/lib/types"
+import { requirePermission } from "@/lib/api/guard"
 
 export async function GET() {
   seed()
@@ -9,6 +10,11 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const guard = requirePermission(req, "settings.edit")
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.message }, { status: guard.status })
+  }
+
   seed()
   const state = db()
   const body = await req.json()

@@ -35,6 +35,18 @@ export default function ContentTranslationsPage() {
   // Track English snapshot to detect changes
   const [baseSnapshot, setBaseSnapshot] = useState<Record<FieldKey, string>>({ name: "", description: "" })
 
+  // Функция для получения токена из cookies
+  function getAuthToken() {
+    const cookies = document.cookie.split(';');
+    const snsAuthCookie = cookies.find(cookie => cookie.trim().startsWith('sns_auth='));
+    if (snsAuthCookie) {
+      const token = snsAuthCookie.split('=')[1];
+      // Декодируем URL-encoded токен
+      return decodeURIComponent(token);
+    }
+    return null;
+  }
+
   const fields: FieldKey[] = useMemo(() => {
     if (entityType === "product") return ["name", "description"]
     if (entityType === "page") return ["name", "description"]
@@ -166,9 +178,14 @@ export default function ContentTranslationsPage() {
         entries[path] = cleaned as any
       }
 
+      const token = getAuthToken();
       const res = await fetch(`/api/translations/content`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        credentials: "include",
         body: JSON.stringify({ entityType, entityId, entries }),
       })
       if (!res.ok) throw new Error("Save failed")
@@ -188,9 +205,14 @@ export default function ContentTranslationsPage() {
       })
       const to = langs.filter((l) => l !== "en")
 
+      const token = getAuthToken();
       const res = await fetch(`/api/translations/content/auto`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        credentials: "include",
         body: JSON.stringify({ entityType, entityId, fields: fieldsMap, to }),
       })
       if (!res.ok) throw new Error("Auto-translate failed")
@@ -214,9 +236,14 @@ export default function ContentTranslationsPage() {
       })
       if (Object.keys(changed).length === 0) return
       const to = langs.filter((l) => l !== "en")
+      const token = getAuthToken();
       const res = await fetch(`/api/translations/content/auto`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        credentials: "include",
         body: JSON.stringify({ entityType, entityId, fields: changed, to }),
       })
       if (!res.ok) throw new Error("Re-translate failed")
