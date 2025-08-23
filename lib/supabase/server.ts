@@ -6,7 +6,14 @@ const hasSupabase = !!supabaseUrl && !!supabaseServiceKey
 
 export function createClient() {
   if (!hasSupabase) {
-    throw new Error("Supabase env not configured")
+    // Return a dummy client that behaves like supabase-js but never throws
+    return {
+      from: (_: string) => createDummyTable(),
+      rpc: async () => ({ data: null, error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
+      auth: {
+        signInWithPassword: async () => ({ data: null, error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
+      },
+    } as any
   }
   return createSupabaseClient(supabaseUrl!, supabaseServiceKey!, {
     realtime: { enabled: false },
@@ -24,6 +31,8 @@ function createDummyTable() {
     update: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
     delete: async () => ({ error: { code: "NO_SUPABASE", message: "Supabase disabled" } }),
     eq: function () { return this },
+    order: function () { return this },
+    or: function () { return this },
   }
 }
 
