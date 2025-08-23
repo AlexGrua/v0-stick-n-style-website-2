@@ -166,7 +166,7 @@ export function LanguageSwitcher({
         <RadioGroup value={lang} onValueChange={(v) => apply(v)} className="grid grid-cols-1 gap-3">
           {languages.map((l) => (
             <label
-              key={l.id}
+              key={l.id || l.code}
               htmlFor={`lang-${l.code}`}
               className={cn(
                 "flex cursor-pointer items-center gap-4 rounded-xl border-2 bg-white px-4 py-3 hover:bg-gray-50 hover:border-lime-300 transition-all duration-200 shadow-sm",
@@ -216,7 +216,7 @@ export function LanguageSwitcher({
         <div className="space-y-1 py-1">
           {languages.map((l) => (
             <DropdownMenuItem
-              key={l.id}
+              key={l.id || l.code}
               onClick={() => apply(l.code)}
               className={cn(
                 "flex items-center gap-3 p-2 rounded-lg hover:bg-lime-50 transition-all duration-200 cursor-pointer",

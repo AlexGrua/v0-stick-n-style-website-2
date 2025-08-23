@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-
-const supabase = createClient()
+import { requireRole } from "@/lib/api/guard"
 
 function toSlug(s: string) {
   return (s || "")
@@ -15,6 +14,7 @@ function toSlug(s: string) {
 
 export async function GET() {
   try {
+    const supabase = createClient()
     const { data: categories, error } = await supabase
       .from("categories")
       .select("*")
@@ -34,6 +34,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const guard = requireRole(req, "admin")
+    if (!guard.ok) return NextResponse.json({ error: guard.message }, { status: guard.status })
+
+    const supabase = createClient()
     const body = await req.json().catch(() => ({}))
 
     const name: string = (body.name || "").trim()
