@@ -99,14 +99,24 @@ export default function CreateNOrderPage() {
         const mapped: Product[] = list.map((p: any) => {
           const category = normalizeCategory(p?.category)
           const sub = normalizeSub(p?.sub ?? p?.subcategory ?? p?.subCategory ?? p?.sub_cat)
+          
+          // Extract sizes and thicknesses from technical specifications
           const sizes = Array.isArray(p?.sizes) ? p.sizes.map((x: any) => String(x)) : []
           const thickness = Array.isArray(p?.thickness) ? p.thickness.map((x: any) => String(x)) : []
-          const colors = Array.isArray(p?.colors)
-            ? p.colors
-                .map((c: any) => c?.nameEn || c?.nameRU || c?.nameRu || c?.name || "")
-                .filter(Boolean)
-                .map((s: any) => String(s))
-            : []
+          
+          // Extract colors from both legacy and new structure
+          let colors: string[] = []
+          if (Array.isArray(p?.colorVariants)) {
+            colors = p.colorVariants
+              .map((c: any) => c?.name || "")
+              .filter(Boolean)
+              .map((s: any) => String(s))
+          } else if (Array.isArray(p?.colors)) {
+            colors = p.colors
+              .map((c: any) => c?.nameEn || c?.nameRU || c?.nameRu || c?.name || "")
+              .filter(Boolean)
+              .map((s: any) => String(s))
+          }
 
           return {
             id: String(p?.id || p?.sku || p?.slug || p?.name),

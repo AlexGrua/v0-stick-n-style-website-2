@@ -108,7 +108,7 @@ export function SiteHeader() {
       <header className="w-full border-b bg-background">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2" aria-label="Stick'N'Style Home">
-            <Image src="/sns-logo.png" alt="Stick'N'Style" width={100} height={26} priority />
+            <Image src="/sns-logo.png" alt="Stick'N'Style" width={100} height={26} priority style={{ height: 'auto' }} />
           </Link>
           <div className="animate-pulse">Loading...</div>
         </div>
@@ -121,7 +121,7 @@ export function SiteHeader() {
       <header className="w-full border-b bg-background">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2" aria-label="Stick'N'Style Home">
-            <Image src="/sns-logo.png" alt="Stick'N'Style" width={100} height={26} priority />
+            <Image src="/sns-logo.png" alt="Stick'N'Style" width={100} height={26} priority style={{ height: 'auto' }} />
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex">
@@ -216,7 +216,7 @@ export function SiteHeader() {
               </SheetTrigger>
               <SheetContent side="right" className="w-80">
                 <div className="flex items-center gap-2">
-                  <Image src="/sns-logo.png" alt="Stick'N'Style" width={80} height={21} priority />
+                  <Image src="/sns-logo.png" alt="Stick'N'Style" width={80} height={21} priority style={{ height: 'auto' }} />
                 </div>
                 <Separator className="my-4" />
                 <div className="grid gap-3">

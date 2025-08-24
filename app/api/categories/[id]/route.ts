@@ -24,12 +24,13 @@ function generateUUID() {
   })
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    console.log("[v0] Getting category with ID:", params.id)
-    const category = await getCategoryById(params.id)
+    const { id } = await params
+    console.log("[v0] Getting category with ID:", id)
+    const category = await getCategoryById(id)
     if (!category) {
-      console.log("[v0] Category not found:", params.id)
+      console.log("[v0] Category not found:", id)
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
     console.log("[v0] Category found:", category)
@@ -40,14 +41,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(req, "admin")
     if (!guard.ok) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    console.log("[v0] Starting PUT request for category ID:", params.id)
+    const { id } = await params
+    console.log("[v0] Starting PUT request for category ID:", id)
 
     const patch = await req.json().catch((err) => {
       console.error("[v0] Error parsing JSON:", err)
@@ -74,8 +76,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       console.log("[v0] Processed subs:", patch.subs)
     }
 
-    console.log("[v0] Calling updateCategory with:", params.id, patch)
-    const updatedCategory = await updateCategory(params.id, patch)
+    console.log("[v0] Calling updateCategory with:", id, patch)
+    const updatedCategory = await updateCategory(id, patch)
     console.log("[v0] Category updated successfully:", updatedCategory)
 
     return NextResponse.json(updatedCategory)
@@ -86,14 +88,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(req, "admin")
     if (!guard.ok) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    const success = await deleteCategory(params.id)
+    const { id } = await params
+    const success = await deleteCategory(id)
 
     if (!success) {
       return NextResponse.json({ error: "Failed to delete category" }, { status: 500 })

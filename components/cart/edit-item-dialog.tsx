@@ -59,12 +59,26 @@ export function EditItemDialog({
     }
   }, [open, item])
 
-  const colors: string[] =
-    (product?.colors as any)
-      ?.map?.((c: any) => c?.nameEn || c?.nameRU || c?.nameRu || c?.name || "")
-      ?.filter(Boolean) ||
-    (Array.isArray((product as any)?.colorOptions) ? ((product as any).colorOptions as string[]) : []) ||
-    (item?.color ? [item.color] : [])
+  const colors: string[] = (() => {
+    // Try new structure first
+    if (Array.isArray((product as any)?.colorVariants)) {
+      return (product as any).colorVariants
+        .map((c: any) => c?.name || "")
+        .filter(Boolean)
+    }
+    // Fallback to legacy structure
+    if ((product?.colors as any)?.map) {
+      return (product?.colors as any)
+        .map((c: any) => c?.nameEn || c?.nameRU || c?.nameRu || c?.name || "")
+        .filter(Boolean)
+    }
+    // Fallback to colorOptions
+    if (Array.isArray((product as any)?.colorOptions)) {
+      return (product as any).colorOptions as string[]
+    }
+    // Fallback to item color
+    return item?.color ? [item.color] : []
+  })()
 
   const sizes: string[] =
     (Array.isArray((product as any)?.sizes) ? ((product as any).sizes as string[]) : []) ||

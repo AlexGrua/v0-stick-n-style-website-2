@@ -2,6 +2,38 @@ export type CategoryKey = string
 
 export type ProductStatus = "active" | "inactive" | "discontinued"
 
+// Technical specifications structure
+export type ThicknessSpec = {
+  thickness: string
+  pcsPerBox: number
+  boxSize: string
+  boxVolume: number
+  boxWeight: number
+}
+
+export type TechnicalSpec = {
+  size: string
+  thicknesses: ThicknessSpec[]
+}
+
+export type ColorVariant = {
+  name: string
+  colorCode: string
+  image: string
+  priceModifier: number
+}
+
+export type ProductSpec = {
+  description: string
+  icon: string
+}
+
+export type InteriorApplication = {
+  name: string
+  description: string
+  image: string
+}
+
 export type Product = {
   id: string
   sku: string
@@ -9,13 +41,17 @@ export type Product = {
   description?: string
   category: CategoryKey
   sub: string
-  thickness: string[] // REQUIRED (min 1)
-  sizes: string[] // REQUIRED (min 1)
+  // Legacy fields for backward compatibility (will be deprecated)
+  thickness: string[] 
+  sizes: string[]
   pcsPerBox: number
   boxKg: number
   boxM3: number
+  // New structured fields
+  technicalSpecifications: TechnicalSpec[]
+  colorVariants: ColorVariant[]
   minOrderBoxes?: number
-  status: ProductStatus // use "inactive" instead of separate hidden flag
+  status: ProductStatus
   tags: string[]
   customFields?: Record<string, unknown>
   thumbnailUrl?: string
@@ -29,7 +65,18 @@ export type Product = {
   technicalDescription?: string
   photos?: { main?: string; others?: string[] }
   infographics?: { main?: string; others?: string[] }
+  // Legacy colors field for backward compatibility
   colors?: Array<{ nameEn: string; nameRu: string; mainImage: string }>
+  // Product specifications
+  productSpecifications?: {
+    material: ProductSpec[]
+    usage: ProductSpec[]
+    application: ProductSpec[]
+    physicalProperties: ProductSpec[]
+    adhesion: ProductSpec[]
+  }
+  interiorApplications?: InteriorApplication[]
+  installationNotes?: string
 }
 
 export type Subcategory = { id: string; name: string }

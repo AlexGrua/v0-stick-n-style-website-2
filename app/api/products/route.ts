@@ -32,6 +32,12 @@ export async function GET(req: Request) {
   try {
     const supabase = createClient()
     console.log("[v0] GET products request started")
+    
+    // Check if Supabase is available
+    if ((supabase as any).from("x").select === undefined) {
+      console.log("[v0] Supabase not available, returning empty result")
+      return NextResponse.json({ items: [], total: 0 })
+    }
 
     const url = new URL(req.url)
     const q = (url.searchParams.get("q") || "").trim().toLowerCase()
@@ -59,19 +65,39 @@ export async function GET(req: Request) {
     }
 
     if (category) {
-      const { data: categoryData } = await supabase
-        .from("categories")
-        .select("id")
-        .or(`slug.eq.${category},name.eq.${category}`)
-        .single()
+      try {
+        const { data: categoryData } = await supabase
+          .from("categories")
+          .select("id")
+          .or(`slug.eq.${category},name.eq.${category}`)
+          .single()
 
-      if (categoryData) {
-        query = query.eq("category_id", categoryData.id)
+        if (categoryData) {
+          query = query.eq("category_id", categoryData.id)
+        }
+      } catch (categoryError) {
+        console.error("[v0] Error fetching category:", categoryError)
+        // Continue without category filter
       }
     }
 
     console.log("[v0] Executing products query...")
-    const { data: products, error } = await query
+    
+    // Add timeout for the query (reduced to 10 seconds)
+    const queryPromise = query
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Query timeout')), 10000)
+    )
+    
+    let products, error
+    try {
+      const result = await Promise.race([queryPromise, timeoutPromise]) as any
+      products = result.data
+      error = result.error
+    } catch (timeoutError) {
+      console.error("[v0] Query timeout, returning empty result:", timeoutError)
+      return NextResponse.json({ items: [], total: 0 })
+    }
 
     if (error) {
       console.error("[v0] Error fetching products:", error)
@@ -80,8 +106,14 @@ export async function GET(req: Request) {
 
     console.log("[v0] Raw products fetched:", products?.length || 0)
 
-    const { data: suppliers } = await supabase.from("suppliers").select("id, name")
-    const supplierMap = new Map(suppliers?.map((s) => [s.id, s.name]) || [])
+    let supplierMap = new Map()
+    try {
+      const { data: suppliers } = await supabase.from("suppliers").select("id, name")
+      supplierMap = new Map(suppliers?.map((s) => [s.id, s.name]) || [])
+    } catch (supplierError) {
+      console.error("[v0] Error fetching suppliers:", supplierError)
+      // Continue without suppliers
+    }
 
     const mappedProducts = (products || []).map((product: any) => {
       const specs = product.specifications || {}
@@ -97,10 +129,32 @@ export async function GET(req: Request) {
       const techSpecs = specs.technicalSpecifications || []
       const colorVariants = specs.colorVariants || []
 
+      // Extract all sizes and thicknesses for backward compatibility
       const allSizes = techSpecs.map((spec: any) => spec.size).filter(Boolean)
       const allThickness = techSpecs
         .flatMap((spec: any) => spec.thicknesses?.map((t: any) => t.thickness) || [])
         .filter(Boolean)
+
+      // Calculate average pcsPerBox, boxKg, boxM3 from technical specs
+      let avgPcsPerBox = 0
+      let avgBoxKg = 0
+      let avgBoxM3 = 0
+      let totalThicknesses = 0
+
+      techSpecs.forEach((spec: any) => {
+        spec.thicknesses?.forEach((thickness: any) => {
+          avgPcsPerBox += thickness.pcsPerBox || 0
+          avgBoxKg += thickness.boxWeight || 0
+          avgBoxM3 += thickness.boxVolume || 0
+          totalThicknesses++
+        })
+      })
+
+      if (totalThicknesses > 0) {
+        avgPcsPerBox = Math.round(avgPcsPerBox / totalThicknesses)
+        avgBoxKg = Math.round((avgBoxKg / totalThicknesses) * 100) / 100
+        avgBoxM3 = Math.round((avgBoxM3 / totalThicknesses) * 1000) / 1000
+      }
 
       return {
         ...product,
@@ -110,17 +164,25 @@ export async function GET(req: Request) {
         sku: specs.sku || `Product-${product.id}`,
         sub: subcategoryName,
         supplier: supplierName,
-        sizes: allSizes.length > 0 ? allSizes.join(", ") : "-",
-        thickness: allThickness.length > 0 ? allThickness.join(", ") : "-",
+        // Structured data for forms and detailed views
+        technicalSpecifications: techSpecs,
+        colorVariants: colorVariants,
+        // Legacy fields for backward compatibility
+        sizes: allSizes,
+        thickness: allThickness,
         colorCount: colorVariants.length,
         specsCount: Object.keys(specs.productSpecifications || {}).length,
-        pcsPerBox: specs.pcsPerBox || 0,
-        boxKg: specs.boxKg || 0,
-        boxM3: specs.boxM3 || 0,
+        pcsPerBox: avgPcsPerBox || specs.pcsPerBox || 0,
+        boxKg: avgBoxKg || specs.boxKg || 0,
+        boxM3: avgBoxM3 || specs.boxM3 || 0,
         technicalDescription: specs.technicalDescription || "",
         minOrderBoxes: specs.minOrderBoxes || 1,
         category: product.categories?.name || "",
         categorySlug: product.categories?.slug || "",
+        // Additional structured fields
+        productSpecifications: specs.productSpecifications || {},
+        interiorApplications: specs.interiorApplications || [],
+        installationNotes: specs.installationNotes || "",
       }
     })
 
@@ -129,15 +191,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ items: mappedProducts, total: mappedProducts.length })
   } catch (error) {
     console.error("[v0] Error in products GET:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to fetch products",
-        details: error instanceof Error ? error.message : "Unknown error",
-        items: [],
-        total: 0,
-      },
-      { status: 500 },
-    )
+    // Return empty result instead of error to prevent page crashes
+    return NextResponse.json({ items: [], total: 0 })
   }
 }
 

@@ -37,7 +37,6 @@ interface ColorVariant {
 
 interface ThicknessSpec {
   thickness: string
-  thicknessCode: string
   pcsPerBox: number
   boxSize: string
   boxVolume: number
@@ -47,7 +46,6 @@ interface ThicknessSpec {
 
 interface TechnicalSpec {
   size: string
-  sizeCode: string
   thicknesses: ThicknessSpec[]
 }
 
@@ -156,10 +154,9 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
   // Current editing states
   const [currentColorImage, setCurrentColorImage] = useState<string>("")
   const [colorName, setColorName] = useState<string>("")
-  const [currentSize, setCurrentSize] = useState({ size: "", sizeCode: "", thicknesses: [] as ThicknessSpec[] })
+  const [currentSize, setCurrentSize] = useState({ size: "", thicknesses: [] as ThicknessSpec[] })
   const [currentThickness, setCurrentThickness] = useState({
     thickness: "",
-    thicknessCode: "",
     pcsPerBox: 0,
     boxSize: "",
     boxVolume: 0,
@@ -191,7 +188,7 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
           setValue("name", productData.name || "")
           setValue("description", productData.description || "")
           setValue("category_id", productData.category_id?.toString() || "")
-          setValue("subcategory_id", productData.specifications?.subcategory_id || "")
+                     setValue("subcategory_id", productData.subcategory_id?.toString() || "")
           setValue("supplierId", productData.specifications?.supplierId?.toString() || "")
           setValue("image_url", productData.image_url || "")
 
@@ -273,7 +270,7 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
         console.log("[v0] Loaded suppliers:", suppliersArray.length)
         console.log(
           "[v0] Suppliers data:",
-          suppliersArray.map((s) => ({ id: s.id, name: s.shortName || s.companyName || s.name })),
+                     suppliersArray.map((s: any) => ({ id: s.id, name: s.shortName || s.name })),
         )
         setSuppliers(suppliersArray)
       } catch (error) {
@@ -288,24 +285,24 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
 
   React.useEffect(() => {
     const subscription = watch((value, { name }) => {
-      if (name === "category_id" && value.category_id) {
-        const categoryId = Number.parseInt(value.category_id)
-        const selectedCategory = categories.find((cat) => cat.id === categoryId)
-        if (selectedCategory && selectedCategory.subs) {
-          // Extract subcategories from the subs JSON field
-          const subs = Array.isArray(selectedCategory.subs) ? selectedCategory.subs : []
-          setSubcategories(subs)
-          console.log("[v0] Loaded subcategories for category", categoryId, ":", subs.length)
-          console.log("[v0] Subcategories data:", subs)
-        } else {
-          setSubcategories([])
-          console.log("[v0] No subcategories found for category", categoryId)
-        }
-        // Reset subcategory selection when category changes
-        setValue("subcategory_id", "")
-      } else if (name === "category_id" && !value.category_id) {
-        setSubcategories([])
-      }
+             if (name === "category_id" && value.category_id) {
+         const categoryId = String(value.category_id)
+         const selectedCategory = categories.find((cat) => String(cat.id) === categoryId)
+         if (selectedCategory && selectedCategory.subs) {
+           // Extract subcategories from the subs JSON field
+           const subs = Array.isArray(selectedCategory.subs) ? selectedCategory.subs : []
+           setSubcategories(subs)
+           console.log("[v0] Loaded subcategories for category", categoryId, ":", subs.length)
+           console.log("[v0] Subcategories data:", subs)
+         } else {
+           setSubcategories([])
+           console.log("[v0] No subcategories found for category", categoryId)
+         }
+         // Reset subcategory selection when category changes
+         setValue("subcategory_id", "")
+       } else if (name === "category_id" && !value.category_id) {
+         setSubcategories([])
+       }
     })
     return () => subscription.unsubscribe()
   }, [categories, watch, setValue]) // Используем subscription вместо прямого watch для предотвращения перерендеров
@@ -427,7 +424,6 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
     })
     setCurrentThickness({
       thickness: "",
-      thicknessCode: "",
       pcsPerBox: 0,
       boxSize: "",
       boxVolume: 0,
@@ -444,7 +440,7 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
 
     console.log("[v0] Saving current size", currentSize)
     setTechnicalSpecs([...technicalSpecs, { ...currentSize }])
-    setCurrentSize({ size: "", sizeCode: "", thicknesses: [] })
+    setCurrentSize({ size: "", thicknesses: [] })
   }
 
   const removeTechnicalSpec = (index: number) => {
@@ -466,11 +462,11 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
     setInteriorApps(interiorApps.filter((_, i) => i !== index))
   }
 
-  const selectedCategory = categories.find((c) => c.id === watch("category_id"))
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[85vw] max-w-none max-h-[90vh] overflow-y-auto">
+             <DialogContent className="w-[95vw] max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{product ? "Edit Product" : "Create Product"}</DialogTitle>
         </DialogHeader>
@@ -484,31 +480,27 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
           </div>
 
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-20 gap-1">
-              <TabsTrigger value="basic" className="h-16 text-xs flex-wrap text-center leading-tight">
-                Basic Info
-              </TabsTrigger>
-              <TabsTrigger value="photos" className="h-16 text-xs flex-wrap text-center leading-tight">
-                Photos & Colors
-              </TabsTrigger>
-              <TabsTrigger value="specs" className="h-16 text-xs flex-wrap text-center leading-tight">
-                Technical Specs
-              </TabsTrigger>
-              <TabsTrigger value="properties" className="h-16 text-xs flex-wrap text-center leading-tight">
-                Properties
-              </TabsTrigger>
-              <TabsTrigger value="applications" className="h-16 text-xs flex-wrap text-center leading-tight">
-                Applications
-              </TabsTrigger>
-            </TabsList>
+                         <TabsList className="grid w-full grid-cols-5 h-12 gap-1">
+               <TabsTrigger value="basic" className="h-10 text-xs whitespace-nowrap px-2">
+                 Basic Info
+               </TabsTrigger>
+               <TabsTrigger value="photos" className="h-10 text-xs whitespace-nowrap px-2">
+                 Photos
+               </TabsTrigger>
+               <TabsTrigger value="specs" className="h-10 text-xs whitespace-nowrap px-2">
+                 Specs
+               </TabsTrigger>
+               <TabsTrigger value="properties" className="h-10 text-xs whitespace-nowrap px-2">
+                 Properties
+               </TabsTrigger>
+               <TabsTrigger value="applications" className="h-10 text-xs whitespace-nowrap px-2">
+                 Apps
+               </TabsTrigger>
+             </TabsList>
 
-            {/* Basic Info Tab */}
-            <TabsContent value="basic" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Basic Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                         {/* Basic Info Tab */}
+             <TabsContent value="basic" className="space-y-3">
+               <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="sku">SKU *</Label>
@@ -582,7 +574,7 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
                       {suppliers && suppliers.length > 0 ? (
                         suppliers.map((supplier) => (
                           <option key={supplier.id} value={supplier.id.toString()}>
-                            {supplier.shortName || supplier.companyName || supplier.name || `Supplier ${supplier.id}`}
+                                                         {supplier.shortName || supplier.name || `Supplier ${supplier.id}`}
                           </option>
                         ))
                       ) : (
@@ -593,8 +585,7 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
                     {suppliers.length === 0 && <p className="text-red-500 text-sm mt-1">No suppliers loaded</p>}
                     <p className="text-gray-500 text-xs mt-1">Debug: {suppliers.length} suppliers loaded</p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
             </TabsContent>
 
             {/* Photos & Colors Tab */}
@@ -768,59 +759,40 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
                   {/* Add Size Form */}
                   <div className="border rounded-lg p-4 space-y-4">
                     <h4 className="font-medium">Add New Size</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Size</Label>
-                        <Input
-                          value={currentSize.size}
-                          onChange={(e) => setCurrentSize({ ...currentSize, size: e.target.value })}
-                          placeholder="e.g., 70x70"
-                        />
-                      </div>
-                      <div>
-                        <Label>Size Code</Label>
-                        <Input
-                          value={currentSize.sizeCode}
-                          onChange={(e) => setCurrentSize({ ...currentSize, sizeCode: e.target.value })}
-                          placeholder="e.g., 7070"
-                        />
-                      </div>
-                    </div>
+                                         <div>
+                       <Label>Size</Label>
+                       <Input
+                         value={currentSize.size}
+                         onChange={(e) => setCurrentSize({ ...currentSize, size: e.target.value })}
+                         placeholder="e.g., 70x70"
+                       />
+                     </div>
 
                     {/* Add Thickness to Current Size */}
                     <div className="border-t pt-4">
                       <h5 className="font-medium mb-3">Add Thickness to This Size</h5>
-                      <div className="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                          <Label>Thickness</Label>
-                          <Input
-                            value={currentThickness.thickness}
-                            onChange={(e) => setCurrentThickness({ ...currentThickness, thickness: e.target.value })}
-                            placeholder="e.g., 3mm"
-                          />
-                        </div>
-                        <div>
-                          <Label>Thickness Code</Label>
-                          <Input
-                            value={currentThickness.thicknessCode}
-                            onChange={(e) =>
-                              setCurrentThickness({ ...currentThickness, thicknessCode: e.target.value })
-                            }
-                            placeholder="e.g., 3"
-                          />
-                        </div>
-                        <div>
-                          <Label>Pcs/Box</Label>
-                          <Input
-                            type="number"
-                            value={currentThickness.pcsPerBox}
-                            onChange={(e) =>
-                              setCurrentThickness({ ...currentThickness, pcsPerBox: Number(e.target.value) })
-                            }
-                            placeholder="25"
-                          />
-                        </div>
-                      </div>
+                                             <div className="grid grid-cols-2 gap-4 mb-4">
+                         <div>
+                           <Label>Thickness</Label>
+                           <Input
+                             value={currentThickness.thickness}
+                             onChange={(e) => setCurrentThickness({ ...currentThickness, thickness: e.target.value })}
+                             placeholder="e.g., 3mm"
+                           />
+                         </div>
+                         <div>
+                           <Label>Pcs/Box</Label>
+                           <Input
+                             type="number"
+                             value={currentThickness.pcsPerBox}
+                             onChange={(e) =>
+                               setCurrentThickness({ ...currentThickness, pcsPerBox: Number(e.target.value) })
+                             }
+                             placeholder="25"
+                             className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                           />
+                         </div>
+                       </div>
                       <div className="grid grid-cols-3 gap-4 mb-4">
                         <div>
                           <Label>Box Size (cm)</Label>
@@ -832,27 +804,29 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
                         </div>
                         <div>
                           <Label>Box Volume (m³)</Label>
-                          <Input
-                            type="number"
-                            step="0.001"
-                            value={currentThickness.boxVolume}
-                            onChange={(e) =>
-                              setCurrentThickness({ ...currentThickness, boxVolume: Number(e.target.value) })
-                            }
-                            placeholder="0.144"
-                          />
+                                                     <Input
+                             type="number"
+                             step="0.001"
+                             value={currentThickness.boxVolume}
+                             onChange={(e) =>
+                               setCurrentThickness({ ...currentThickness, boxVolume: Number(e.target.value) })
+                             }
+                             placeholder="0.144"
+                             className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                           />
                         </div>
                         <div>
                           <Label>Box Weight (kg)</Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={currentThickness.boxWeight}
-                            onChange={(e) =>
-                              setCurrentThickness({ ...currentThickness, boxWeight: Number(e.target.value) })
-                            }
-                            placeholder="18.5"
-                          />
+                                                     <Input
+                             type="number"
+                             step="0.1"
+                             value={currentThickness.boxWeight}
+                             onChange={(e) =>
+                               setCurrentThickness({ ...currentThickness, boxWeight: Number(e.target.value) })
+                             }
+                             placeholder="18.5"
+                             className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                           />
                         </div>
                       </div>
                       <Button onClick={addThicknessToCurrentSize} variant="outline" size="sm">
@@ -897,9 +871,9 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
                           >
                             <X className="w-4 h-4" />
                           </button>
-                          <h5 className="font-medium mb-2">
-                            Size: {spec.size} ({spec.sizeCode})
-                          </h5>
+                                                     <h5 className="font-medium mb-2">
+                             Size: {spec.size}
+                           </h5>
                           <div className="space-y-2">
                             {spec.thicknesses.map((thickness, thickIndex) => (
                               <div key={thickIndex} className="bg-gray-50 p-3 rounded text-sm">

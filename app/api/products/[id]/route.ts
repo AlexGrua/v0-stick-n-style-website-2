@@ -14,13 +14,14 @@ function toSlug(s: string) {
     .replace(/^-+|-+$/g, "")
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    console.log("[v0] GET request received for product ID:", params.id)
+    const { id } = await params
+    console.log("[v0] GET request received for product ID:", id)
     console.log("[v0] Supabase URL configured:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
     console.log("[v0] Service role key configured:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
-    if (params.id === "stats") {
+    if (id === "stats") {
       console.log("[v0] Redirecting stats request to stats endpoint")
       try {
         const { data: products, error } = await supabase.from("products").select("id, in_stock")
@@ -44,9 +45,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       }
     }
 
-    const productId = Number.parseInt(params.id)
+    const productId = Number.parseInt(id)
     if (isNaN(productId)) {
-      console.log("[v0] Invalid product ID format:", params.id)
+      console.log("[v0] Invalid product ID format:", id)
       return NextResponse.json({ error: "Invalid product ID format" }, { status: 400 })
     }
 
@@ -99,7 +100,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     console.log("[v0] Product found:", { id: product.id, name: product.name })
 
     let subcategoryName = ""
-    const subId = product.specifications?.sub || product.sub
+    const subId = product.specifications?.sub || product.specifications?.subcategory_id || product.sub
     if (subId && product.categories?.subs) {
       const subcategory = product.categories.subs.find((sub: any) => sub.id === subId)
       subcategoryName = subcategory?.name || ""
@@ -124,30 +125,61 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     // Маппинг данных для frontend
     const specs = product.specifications || {}
     const techSpecs = specs.technicalSpecifications || []
+    
+    // Extract all sizes and thicknesses for backward compatibility
     const sizesFromTechSpecs = techSpecs.map((spec: any) => spec.size).filter(Boolean)
-    const thicknessFromTechSpecs = techSpecs.map((spec: any) => spec.thickness).filter(Boolean)
+    const thicknessFromTechSpecs = techSpecs
+      .flatMap((spec: any) => spec.thicknesses?.map((t: any) => t.thickness) || [])
+      .filter(Boolean)
+
+    // Calculate average values from technical specs
+    let avgPcsPerBox = 0
+    let avgBoxKg = 0
+    let avgBoxM3 = 0
+    let totalThicknesses = 0
+
+    techSpecs.forEach((spec: any) => {
+      spec.thicknesses?.forEach((thickness: any) => {
+        avgPcsPerBox += thickness.pcsPerBox || 0
+        avgBoxKg += thickness.boxWeight || 0
+        avgBoxM3 += thickness.boxVolume || 0
+        totalThicknesses++
+      })
+    })
+
+    if (totalThicknesses > 0) {
+      avgPcsPerBox = Math.round(avgPcsPerBox / totalThicknesses)
+      avgBoxKg = Math.round((avgBoxKg / totalThicknesses) * 100) / 100
+      avgBoxM3 = Math.round((avgBoxM3 / totalThicknesses) * 1000) / 1000
+    }
 
     const mappedProduct = {
       ...product,
+      sku: product.sku || specs.sku || "",
       thumbnailUrl: product.image_url || "",
-      sub: subcategoryName, // Используем название вместо UUID
-      subcategoryName: subcategoryName, // Добавляем отдельное поле для subcategory
-      supplierName, // Добавляем название поставщика
-      supplierId, // Добавляю supplierId для формы
+      sub: subcategoryName,
+      subcategoryName: subcategoryName,
+      subcategory_id: subId, // Add subcategory_id for form
+      supplierName,
+      supplierId,
+      // Legacy fields for backward compatibility
       sizes: sizesFromTechSpecs.length > 0 ? sizesFromTechSpecs : specs.sizes || [],
       thickness: thicknessFromTechSpecs.length > 0 ? thicknessFromTechSpecs : specs.thickness || [],
-      pcsPerBox: specs.pcsPerBox || 0,
-      boxKg: specs.boxKg || 0,
-      boxM3: specs.boxM3 || 0,
+      pcsPerBox: avgPcsPerBox || specs.pcsPerBox || 0,
+      boxKg: avgBoxKg || specs.boxKg || 0,
+      boxM3: avgBoxM3 || specs.boxM3 || 0,
       technicalDescription: specs.technicalDescription || "",
       minOrderBoxes: specs.minOrderBoxes || 1,
       category: product.categories?.name || "",
       categorySlug: product.categories?.slug || "",
+      // Structured data for forms
       technicalSpecifications: techSpecs,
-      // Новые поля для детальной страницы
       colorVariants: specs.colorVariants || [],
+      // Product specifications
+      productSpecifications: specs.productSpecifications || {},
       interiorApplications: specs.interiorApplications || [],
       installationNotes: specs.installationNotes || "",
+      // Legacy fields for backward compatibility
       material: specs.material || "",
       usage: specs.usage || "",
       application: specs.application || "",
@@ -169,14 +201,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       {
         error: "Internal server error",
         details: error instanceof Error ? error.message : "Unknown error",
-        productId: params.id,
       },
       { status: 500 },
     )
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(req, "admin")
     if (!guard.ok) {
@@ -185,12 +216,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     const body = await req.json().catch(() => ({}))
 
-    console.log("[v0] Updating product with ID:", params.id)
+    const { id } = await params
+    console.log("[v0] Updating product with ID:", id)
     console.log("[v0] Update payload:", body)
 
-    const productId = Number.parseInt(params.id)
+    const productId = Number.parseInt(id)
     if (isNaN(productId)) {
-      console.log("[v0] Invalid product ID format:", params.id)
+      console.log("[v0] Invalid product ID format:", id)
       return NextResponse.json({ error: "Invalid product ID format" }, { status: 400 })
     }
 
@@ -208,7 +240,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     // Generate slug from name if not provided
     if (body.name && !body.slug) {
-      updateData.slug = toSlug(body.name)
+      const baseSlug = toSlug(body.name)
+      updateData.slug = baseSlug
     }
 
     if (body.specifications) {
@@ -226,12 +259,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         ...currentSpecs,
         ...body.specifications,
         // Ensure SKU is stored in specifications
-        sku: body.sku || body.specifications.sku || currentSpecs.sku,
+        sku: body.sku || body.specifications?.sku || currentSpecs.sku,
         // Ensure subcategory_id is stored correctly
-        subcategory_id: body.subcategory_id || body.specifications.subcategory_id || currentSpecs.subcategory_id,
+        subcategory_id: body.subcategory_id || body.specifications?.subcategory_id || currentSpecs.subcategory_id,
+        // Also store sub for backward compatibility
+        sub: body.subcategory_id || body.specifications?.subcategory_id || currentSpecs.subcategory_id,
       }
 
-      console.log("[v0] Updated specifications:", updateData.specifications)
+      // console.log("[v0] Updated specifications:", updateData.specifications)
     }
 
     // Validate category exists
@@ -248,7 +283,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    console.log("[v0] Final update data:", updateData)
+    // console.log("[v0] Final update data:", updateData)
 
     const { data: product, error } = await supabase
       .from("products")
@@ -259,6 +294,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     if (error) {
       console.error("[v0] Error updating product:", error)
+      
+      // Handle specific slug duplicate error
+      if (error.code === '23505' && error.message.includes('slug')) {
+        return NextResponse.json({ 
+          error: "Product with this name already exists. Please choose a different name.",
+          details: error.message 
+        }, { status: 400 })
+      }
+      
       return NextResponse.json({ error: "Failed to update product", details: error.message }, { status: 500 })
     }
 
@@ -270,14 +314,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(req, "admin")
     if (!guard.ok) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    const { error } = await supabase.from("products").delete().eq("id", params.id)
+    const { id } = await params
+    const { error } = await supabase.from("products").delete().eq("id", id)
 
     if (error) {
       console.error("Error deleting product:", error)

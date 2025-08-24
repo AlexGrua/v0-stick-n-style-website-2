@@ -7,28 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Edit, Copy, Trash2, Search, Eye } from "lucide-react"
-
-interface Product {
-  id: number
-  name: string
-  sku?: string
-  slug: string
-  description?: string
-  price: number
-  category_id: number
-  image_url?: string
-  in_stock: boolean
-  created_at: string
-  updated_at: string
-  specifications?: {
-    supplierId?: string
-    subcategoryId?: string
-    colorVariants?: Array<{ name: string; image: string }>
-    technicalSpecifications?: Array<any>
-    productSpecifications?: any
-    interiorApplications?: Array<any>
-  }
-}
+import type { Product } from "@/lib/types"
 
 interface ProductsTableNewProps {
   data: Product[]
@@ -54,7 +33,7 @@ export function ProductsTableNew({
   onPreview,
 }: ProductsTableNewProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<keyof Product>("id")
+  const [sortField, setSortField] = useState<keyof Product>("updatedAt")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   const safeProducts = data || []
@@ -65,12 +44,12 @@ export function ProductsTableNew({
     loading: loading,
   })
 
-  const getCategoryName = (categoryId: number) => {
-    return `Category ${categoryId}`
+  const getCategoryName = (category: string) => {
+    return category || "Unknown"
   }
 
-  const getSubcategoryName = (subcategoryId?: string) => {
-    return subcategoryId ? `Sub-${subcategoryId.slice(0, 8)}` : "-"
+  const getSubcategoryName = (sub: string) => {
+    return sub || "-"
   }
 
   const getSupplierName = (supplierId?: string) => {
@@ -80,14 +59,14 @@ export function ProductsTableNew({
   // Filter and sort products
   const filteredProducts = safeProducts.filter(
     (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      getCategoryName(product.category_id).toLowerCase().includes(searchTerm.toLowerCase()),
+      getCategoryName(product.category || "").toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
-    let aValue = a[sortField]
-    let bValue = b[sortField]
+    let aValue = a[sortField] ?? ""
+    let bValue = b[sortField] ?? ""
 
     if (typeof aValue === "string") aValue = aValue.toLowerCase()
     if (typeof bValue === "string") bValue = bValue.toLowerCase()
@@ -160,9 +139,9 @@ export function ProductsTableNew({
               <TableHead>Sizes</TableHead>
               <TableHead>Thickness</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("updated_at")}>
-                Updated {sortField === "updated_at" && (sortDirection === "asc" ? "↑" : "↓")}
-              </TableHead>
+                             <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("updatedAt")}>
+                 Updated {sortField === "updatedAt" && (sortDirection === "asc" ? "↑" : "↓")}
+               </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -177,10 +156,10 @@ export function ProductsTableNew({
               sortedProducts.map((product) => (
                 <TableRow key={product.id} className="hover:bg-muted/50">
                   <TableCell>
-                    {product.image_url && (
+                    {product.thumbnailUrl && (
                       <img
-                        src={product.image_url || "/placeholder.svg"}
-                        alt={product.name}
+                        src={product.thumbnailUrl || "/placeholder.svg"}
+                        alt={product.name || "Product"}
                         className="w-10 h-10 rounded object-cover"
                       />
                     )}
@@ -189,21 +168,25 @@ export function ProductsTableNew({
                   <TableCell className="font-mono text-sm font-medium">
                     {product.sku || `Product-${product.id}`}
                   </TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>{getCategoryName(product.category_id)}</TableCell>
-                  <TableCell>{getSubcategoryName(product.specifications?.subcategoryId)}</TableCell>
-                  <TableCell>{getSupplierName(product.specifications?.supplierId)}</TableCell>
+                  <TableCell className="font-medium">{product.name || "Unnamed Product"}</TableCell>
+                  <TableCell>{getCategoryName(product.category || "")}</TableCell>
+                  <TableCell>{getSubcategoryName(product.sub || "")}</TableCell>
+                  <TableCell>{getSupplierName()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{product.specifications?.technicalSpecifications?.length || 0}</Badge>
+                    <Badge variant="outline">{product.technicalSpecifications?.length || 0}</Badge>
                   </TableCell>
-                  <TableCell>-</TableCell>
                   <TableCell>
-                    <Badge variant={product.in_stock ? "default" : "secondary"}>
-                      {product.in_stock ? "active" : "inactive"}
+                    <Badge variant="outline">
+                      {product.technicalSpecifications?.flatMap(spec => spec.thicknesses?.map(t => t.thickness) || []).length || 0}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={(product.status || "inactive") === "active" ? "default" : "secondary"}>
+                      {product.status || "inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(product.updated_at).toLocaleDateString()}
+                    {product.updatedAt ? new Date(product.updatedAt).toLocaleDateString() : "N/A"}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

@@ -33,14 +33,24 @@ export function ProductDetails({
 
   // Build colors, sizes, thickness
   const colors = React.useMemo(
-    () =>
-      Array.isArray(product?.colors)
-        ? product.colors.map((c: any) => ({
-            name: c?.nameEn || c?.nameRu || c?.name || "Color",
-            image: c?.mainImage || c?.image || "",
-          }))
-        : [],
-    [product?.colors],
+    () => {
+      // Try new structure first
+      if (Array.isArray(product?.colorVariants)) {
+        return product.colorVariants.map((c: any) => ({
+          name: c?.name || "Color",
+          image: c?.image || "",
+        }))
+      }
+      // Fallback to legacy structure
+      if (Array.isArray(product?.colors)) {
+        return product.colors.map((c: any) => ({
+          name: c?.nameEn || c?.nameRu || c?.name || "Color",
+          image: c?.mainImage || c?.image || "",
+        }))
+      }
+      return []
+    },
+    [product?.colorVariants, product?.colors],
   )
   const sizes: string[] = Array.isArray(product?.sizes) ? product.sizes : []
   const thicknesses: string[] = Array.isArray(product?.thickness) ? product.thickness : []

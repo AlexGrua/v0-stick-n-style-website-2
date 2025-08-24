@@ -2,14 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { requireRole } from "@/lib/api/guard"
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(request, "admin")
     if (!guard.ok) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    console.log("[v0] PUT language request started for ID:", params.id)
+    const { id } = await params
+    console.log("[v0] PUT language request started for ID:", id)
 
     const supabase = createClient()
     const body = await request.json()
@@ -21,7 +22,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data, error } = await supabase
       .from("languages")
       .update({ code, name, flag_icon })
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single()
 
@@ -38,14 +39,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = requireRole(request, "admin")
     if (!guard.ok) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    console.log("[v0] DELETE language request started for ID:", params.id)
+    const { id } = await params
+    console.log("[v0] DELETE language request started for ID:", id)
 
     const supabase = createClient()
 
@@ -53,7 +55,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const { data: language, error: fetchError } = await supabase
       .from("languages")
       .select("is_default, is_active")
-      .eq("id", params.id)
+      .eq("id", id)
       .single()
 
     if (fetchError) {
@@ -81,14 +83,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Delete the language
-    const { error: deleteError } = await supabase.from("languages").delete().eq("id", params.id)
+    const { error: deleteError } = await supabase.from("languages").delete().eq("id", id)
 
     if (deleteError) {
       console.error("[v0] Error deleting language:", deleteError)
       return NextResponse.json({ success: false, error: "Failed to delete language" }, { status: 500 })
     }
 
-    console.log("[v0] Language deleted successfully:", params.id)
+    console.log("[v0] Language deleted successfully:", id)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("[v0] Delete language error:", error)

@@ -4,10 +4,11 @@ import * as React from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Package, X } from "lucide-react"
+import { Plus, Package, X, Download, Upload } from "lucide-react"
 import type { Category, Product } from "@/lib/types"
 import { ProductFormNew } from "@/components/admin/product-form-new"
 import { ProductsTableNew } from "@/components/admin/products-table-new"
+import { CSVImportDialog } from "@/components/admin/csv-import-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { QuickView } from "@/components/catalog/quick-view"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -120,6 +121,7 @@ export default function CatalogAdminPage() {
 
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [previewProduct, setPreviewProduct] = React.useState<Product | null>(null)
+  const [importOpen, setImportOpen] = React.useState(false)
 
   function handlePreview(p: Product) {
     setPreviewProduct(p)
@@ -231,7 +233,41 @@ export default function CatalogAdminPage() {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/products/export')
+                    if (!response.ok) throw new Error('Export failed')
+                    
+                    const blob = await response.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'products-export.csv'
+                    document.body.appendChild(a)
+                    a.click()
+                    window.URL.revokeObjectURL(url)
+                    document.body.removeChild(a)
+                    
+                    toast({ title: "Export successful", description: "Products exported to CSV" })
+                  } catch (error) {
+                    console.error('Export failed:', error)
+                    toast({ title: "Export failed", description: "Failed to export products", variant: "destructive" })
+                  }
+                }}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload className="mr-1 h-4 w-4" />
+                Import CSV
+              </Button>
               <Button
                 onClick={() => {
                   console.log("[v0] New Product button clicked")
@@ -275,6 +311,16 @@ export default function CatalogAdminPage() {
             prefillFrom={duplicateFrom || undefined}
           />
           <QuickView open={previewOpen} onOpenChange={setPreviewOpen} product={previewProduct} />
+          <CSVImportDialog 
+            open={importOpen} 
+            onOpenChange={setImportOpen}
+            onImportComplete={() => {
+              // Reload products after import
+              fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
+                .then((data) => setItems(data.items))
+                .catch((error) => console.error("Failed to reload products:", error))
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>
