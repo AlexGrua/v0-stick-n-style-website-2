@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/server"
 import { requireRole } from "@/lib/api/guard"
 
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const supabase = createClient()
 
 type RouteContext = { params: { id: string } }
 
@@ -100,16 +100,104 @@ export async function DELETE(req: Request, ctx: RouteContext) {
       return NextResponse.json({ error: guard.message }, { status: guard.status })
     }
 
-    const { error } = await supabase.from("suppliers").delete().eq("id", ctx.params.id)
+    const { id } = await ctx.params
+
+    const { error } = await supabase.from("suppliers").delete().eq("id", id)
 
     if (error) {
       console.error("Error deleting supplier:", error)
-      return NextResponse.json({ error: "Failed to delete supplier" }, { status: 500 })
+      
+      // Обработка специфических ошибок
+      if (error.code === '23503') {
+        return NextResponse.json({ 
+          error: "Cannot delete supplier",
+          details: "This supplier is referenced by other records. Please remove all references first."
+        }, { status: 400 })
+      }
+      
+      return NextResponse.json({ 
+        error: "Failed to delete supplier",
+        details: error.message || "Database error occurred"
+      }, { status: 500 })
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     console.error("Error deleting supplier:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error",
+      details: "An unexpected error occurred while deleting the supplier"
+    }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request, ctx: RouteContext) {
+  try {
+    const guard = requireRole(request, "admin")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status })
+    }
+
+    const { id } = await ctx.params
+    const patch = await request.json()
+
+    // Разрешаем только обновление статуса
+    const updateData: any = {}
+    
+    if (patch.status !== undefined) {
+      if (patch.status !== 'active' && patch.status !== 'inactive') {
+        return NextResponse.json({ 
+          error: "Invalid status",
+          details: "Status must be 'active' or 'inactive'"
+        }, { status: 400 })
+      }
+      updateData.status = patch.status
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ 
+        error: "No valid fields to update",
+        details: "Only status field can be updated via PATCH"
+      }, { status: 400 })
+    }
+
+    updateData.updated_at = new Date().toISOString()
+
+    const { data: supplier, error } = await supabase
+      .from("suppliers")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating supplier status:", error)
+      return NextResponse.json({ 
+        error: "Failed to update supplier status",
+        details: error.message || "Database error occurred"
+      }, { status: 500 })
+    }
+
+    // Маппинг ответа для frontend
+    const mappedSupplier = {
+      id: supplier.id,
+      shortName: supplier.name,
+      companyName: supplier.name,
+      contactPerson: supplier.contact_person,
+      contactEmail: supplier.email,
+      contactPhone: supplier.phone,
+      address: supplier.address,
+      categories: supplier.categories,
+      status: supplier.status,
+      notes: supplier.notes,
+    }
+
+    return NextResponse.json(mappedSupplier, { status: 200 })
+  } catch (error) {
+    console.error("Error updating supplier status:", error)
+    return NextResponse.json({ 
+      error: "Internal server error",
+      details: "An unexpected error occurred while updating the supplier status"
+    }, { status: 500 })
   }
 }

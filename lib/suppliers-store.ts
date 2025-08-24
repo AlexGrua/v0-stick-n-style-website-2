@@ -1,4 +1,4 @@
-export type SupplierStatus = "approved" | "pending" | "blocked"
+export type SupplierStatus = "active" | "inactive"
 
 export type Supplier = {
   id: string
@@ -38,7 +38,7 @@ function seedDefaults(): Supplier[] {
       contactEmail: "alice@supplier1.example",
       contactPhone: "+1 555 111 2222",
       website: "https://supplier-one.example",
-      status: "approved",
+      status: "active",
       categories: [],
       createdAt: t,
       updatedAt: t,
@@ -51,7 +51,7 @@ function seedDefaults(): Supplier[] {
       contactEmail: "lihua@supplier2.example",
       contactPhone: "+86 755 1234 5678",
       website: "https://supplier-two.example",
-      status: "approved",
+      status: "active",
       categories: [],
       createdAt: t,
       updatedAt: t,
@@ -132,7 +132,7 @@ export function createSupplier(input: Supplier) {
   const payload: Supplier = {
     ...input,
     categories: Array.from(new Set(input.categories || [])),
-    status: input.status || "approved",
+    status: input.status || "active",
     createdAt: nowISO(),
     updatedAt: nowISO(),
   }

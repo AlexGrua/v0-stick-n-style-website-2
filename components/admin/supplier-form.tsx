@@ -16,6 +16,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { useErrorHandler } from "@/hooks/use-error-handler"
 import type { Supplier, SupplierStatus } from "@/lib/suppliers-store"
 import type { Category } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -25,12 +26,13 @@ type Props = {
   onOpenChange: (open: boolean) => void
   supplier: Supplier | null
   initial?: Partial<Supplier>
-  categories: Category[]
+  categories?: Category[]
   onSaved?: () => void
+  onSuccess?: () => void
 }
 
-export function SupplierForm({ open, onOpenChange, supplier, initial, categories, onSaved }: Props) {
-  const { toast } = useToast()
+export function SupplierForm({ open, onOpenChange, supplier, initial, categories = [], onSaved, onSuccess }: Props) {
+  const { handleApiError, handleSuccess } = useErrorHandler()
   const isEdit = !!supplier
 
   const [id, setId] = React.useState(initial?.id ?? supplier?.id ?? "")
@@ -41,7 +43,7 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
   const [contactPhone, setContactPhone] = React.useState(initial?.contactPhone ?? supplier?.contactPhone ?? "")
   const [messenger, setMessenger] = React.useState(initial?.messenger ?? supplier?.messenger ?? "")
   const [website, setWebsite] = React.useState(initial?.website ?? supplier?.website ?? "")
-  const [status, setStatus] = React.useState<SupplierStatus>(initial?.status ?? supplier?.status ?? "approved")
+  const [status, setStatus] = React.useState<SupplierStatus>(initial?.status ?? supplier?.status ?? "active")
   const [notes, setNotes] = React.useState(initial?.notes ?? supplier?.notes ?? "")
   const [selectedCats, setSelectedCats] = React.useState<string[]>(initial?.categories ?? supplier?.categories ?? [])
   const [pending, setPending] = React.useState(false)
@@ -55,7 +57,7 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
     setContactPhone(initial?.contactPhone ?? supplier?.contactPhone ?? "")
     setMessenger(initial?.messenger ?? supplier?.messenger ?? "")
     setWebsite(initial?.website ?? supplier?.website ?? "")
-    setStatus((initial?.status as SupplierStatus) ?? (supplier?.status as SupplierStatus) ?? "approved")
+    setStatus((initial?.status as SupplierStatus) ?? (supplier?.status as SupplierStatus) ?? "active")
     setNotes(initial?.notes ?? supplier?.notes ?? "")
     setSelectedCats(initial?.categories ?? supplier?.categories ?? [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,15 +75,11 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!id && !isEdit) {
-      toast({ title: "ID is required", variant: "destructive" })
+      handleApiError("ID is required")
       return
     }
     if (!shortName || !companyName || !contactPerson || selectedCats.length === 0) {
-      toast({
-        title: "Fill all required fields",
-        description: "ID, Short Name, Company, Contact, Categories",
-        variant: "destructive",
-      })
+      handleApiError("Fill all required fields: ID, Short Name, Company, Contact, Categories")
       return
     }
     setPending(true)
@@ -115,13 +113,15 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
       }
       const json = await res.json()
       if (!res.ok) {
-        throw new Error(json?.error || "Save failed")
+        handleApiError(json, "Save failed")
+        return
       }
-      toast({ title: isEdit ? "Supplier updated" : "Supplier created" })
+      handleSuccess(isEdit ? "Supplier updated" : "Supplier created")
       onOpenChange(false)
       onSaved?.()
+      onSuccess?.()
     } catch (e: any) {
-      toast({ title: "Error", description: String(e.message || e), variant: "destructive" })
+      handleApiError(e, "An unexpected error occurred")
     } finally {
       setPending(false)
     }
@@ -181,9 +181,8 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="approved">approved</SelectItem>
-                  <SelectItem value="pending">pending</SelectItem>
-                  <SelectItem value="blocked">blocked</SelectItem>
+                  <SelectItem value="active">active</SelectItem>
+                  <SelectItem value="inactive">inactive</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -194,6 +193,7 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
                 type="email"
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="contact@company.com"
               />
             </div>
             <div className="space-y-1.5">
@@ -225,16 +225,22 @@ export function SupplierForm({ open, onOpenChange, supplier, initial, categories
               Categories <span className="text-red-600">*</span>
             </Label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {categories.map((c) => (
-                <label key={c.id} className={cn("flex items-center gap-2 rounded-md border p-2 text-sm")}>
-                  <Checkbox
-                    checked={selectedCats.includes(c.slug)}
-                    onCheckedChange={(checked) => toggleCat(c.slug, checked)}
-                    aria-label={`Category ${c.name}`}
-                  />
-                  <span className="truncate">{c.name}</span>
-                </label>
-              ))}
+              {categories && categories.length > 0 ? (
+                categories.map((c) => (
+                  <label key={c.id} className={cn("flex items-center gap-2 rounded-md border p-2 text-sm")}>
+                    <Checkbox
+                      checked={selectedCats.includes(c.slug)}
+                      onCheckedChange={(checked) => toggleCat(c.slug, checked)}
+                      aria-label={`Category ${c.name}`}
+                    />
+                    <span className="truncate">{c.name}</span>
+                  </label>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-4 text-muted-foreground">
+                  No categories available
+                </div>
+              )}
             </div>
           </div>
 

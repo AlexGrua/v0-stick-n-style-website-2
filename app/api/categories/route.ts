@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-// import { requirePermission } from "@/lib/api/guard"
+
+// ВАЖНО: чтобы точно выполнялось на Node и логировалось в терминале
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 function toSlug(s: string) {
   return (s || "")
@@ -13,54 +17,111 @@ function toSlug(s: string) {
 }
 
 export async function GET() {
+  console.log('[api] GET /api/categories - начало')
+  
   try {
     const supabase = createClient()
     
-    // Get categories with subcategories (unified schema)
-        const { data: categories, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("name", { ascending: true })
+    // Получаем категории
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('id, name, slug, description, image_url, status, created_at, updated_at')
+      .order('id')
 
-    if (error) {
-      console.error("Error fetching categories:", error)
-      return NextResponse.json({ items: [], total: 0 })
+    if (categoriesError) {
+      console.error('[api] Error fetching categories:', categoriesError)
+      return Response.json({ error: 'Failed to fetch categories' }, { status: 500 })
     }
 
-    const mappedCategories = (categories || []).map((cat: any) => {
-      // Используем существующие JSONB данные из поля subs
-      const subs = cat.subs || []
-      return {
-        ...cat,
-        subs: subs,
-        subcategories: subs,
-        subcategoryCount: subs.length,
-      }
-    })
+    // Получаем все подкатегории
+    const { data: subcategories, error: subcategoriesError } = await supabase
+      .from('subcategories')
+      .select('id, name, category_id')
+      .order('category_id, id')
 
-    return NextResponse.json({ items: mappedCategories, total: mappedCategories.length })
+    if (subcategoriesError) {
+      console.error('[api] Error fetching subcategories:', subcategoriesError)
+      return Response.json({ error: 'Failed to fetch subcategories' }, { status: 500 })
+    }
+
+    // Группируем подкатегории по category_id
+    const subsByCategory = subcategories?.reduce((acc: Record<number, Array<{id: number, name: string}>>, sub: any) => {
+      if (!acc[sub.category_id]) {
+        acc[sub.category_id] = []
+      }
+      acc[sub.category_id].push({
+        id: sub.id,
+        name: sub.name
+      })
+      return acc
+    }, {} as Record<number, Array<{id: number, name: string}>>) || {}
+
+    // Формируем финальный ответ с правильными подкатегориями
+    const items = categories?.map((category: any) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      status: category.status,
+      subs: subsByCategory[category.id] || [], // Используем данные из subcategories
+      createdAt: category.created_at,
+      updatedAt: category.updated_at
+    })) || []
+
+    console.log('[api] GET /api/categories - успешно, категорий:', items.length)
+    return Response.json({ items })
   } catch (error) {
-    console.error("Error in categories GET:", error)
-    return NextResponse.json({ items: [], total: 0 })
+    console.error('[api] Unexpected error in categories GET:', error)
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
+  console.log('[api] POST /api/categories - начало')
+  console.time('[api] POST /api/categories')
+  
   try {
-    // ВРЕМЕННО ОТКЛЮЧАЕМ GUARD ДЛЯ ТЕСТИРОВАНИЯ
-    // const guard = requirePermission(req, "categories.create")
-    // if (!guard.ok) return NextResponse.json({ error: guard.message }, { status: guard.status })
-
-    const supabase = createClient()
     const body = await req.json().catch(() => ({}))
+    console.log('[api] incoming payload:', JSON.stringify(body, null, 2))
 
-    console.log('📝 POST /api/categories - body:', body)
-
+    // Валидация входных данных
     const name: string = (body.name || "").trim()
     if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 })
+      console.log('[api] Validation error: name is required')
+      return NextResponse.json({ 
+        error: "Name is required", 
+        code: 'VALIDATION_ERROR',
+        details: 'Category name cannot be empty'
+      }, { status: 400 })
     }
 
+    // Валидация подкатегорий
+    const subs = body.subs || []
+    if (!Array.isArray(subs)) {
+      console.log('[api] Validation error: subs must be an array')
+      return NextResponse.json({ 
+        error: "Invalid subs format", 
+        code: 'VALIDATION_ERROR',
+        details: 'Subcategories must be an array'
+      }, { status: 400 })
+    }
+
+    // Проверяем каждую подкатегорию
+    for (let i = 0; i < subs.length; i++) {
+      const sub = subs[i]
+      if (!sub || typeof sub.name !== 'string' || !sub.name.trim()) {
+        console.log('[api] Validation error: invalid subcategory at index', i)
+        return NextResponse.json({ 
+          error: "Invalid subcategory", 
+          code: 'VALIDATION_ERROR',
+          details: `Subcategory at index ${i} must have a valid name`
+        }, { status: 400 })
+      }
+    }
+
+    console.log('[api] Validation passed. Name:', name, 'Subs count:', subs.length)
+
+    const supabase = createClient()
+    
     let slug = body.slug || toSlug(name)
 
     // Ensure unique slug
@@ -81,40 +142,102 @@ export async function POST(req: Request) {
 
     const description: string = body.description || ""
     const image_url: string = body.image_url || ""
-    // Убрали sort_order
+    const status: string = body.status || "active"
 
-    console.log('📝 Вставляем категорию:', { name, slug, description, image_url })
+    console.log('[api] Creating category with data:', { name, slug, description, image_url, status })
 
-    // Подготавливаем данные для вставки (НЕ включаем subs - они управляются триггерами)
-    const insertData: any = {
-      name,
-      slug,
-      description,
-      image_url,
-    }
-
-    const { data: category, error } = await supabase
+    // Создаем категорию
+    const { data: category, error: categoryError } = await supabase
       .from("categories")
-      .insert(insertData)
+      .insert({
+        name,
+        slug,
+        description,
+        image_url,
+        status,
+      })
       .select()
       .single()
 
-    if (error) {
-      console.error("❌ Ошибка создания категории:", error)
+    if (categoryError) {
+      console.error("[api] Error creating category:", categoryError)
       return NextResponse.json({ 
         error: "Failed to create category", 
-        details: error.message,
-        code: error.code 
+        details: categoryError.message,
+        code: categoryError.code 
       }, { status: 500 })
     }
 
-    console.log('✅ Категория создана:', category)
-    return NextResponse.json(category, { status: 201 })
+    console.log('[api] Category created successfully:', category.id)
+
+    // Создаем подкатегории, если они есть
+    if (subs.length > 0) {
+      console.log('[api] Creating subcategories:', subs.length)
+      
+      const subcategoriesData = subs.map((sub: any) => ({
+        name: sub.name.trim(),
+        slug: toSlug(sub.name.trim()),
+        description: '',
+        image_url: null,
+        sort_order: 0,
+        is_active: true,
+        category_id: category.id
+      }))
+
+      console.log('[api] Subcategories data to insert:', subcategoriesData)
+
+      const { data: subcategories, error: subsError } = await supabase
+        .from("subcategories")
+        .insert(subcategoriesData)
+        .select()
+
+      if (subsError) {
+        console.error("[api] Error creating subcategories:", subsError)
+        console.error("[api] Error details:", JSON.stringify(subsError, null, 2))
+        
+        // Проверяем, не RLS ли это
+        if (subsError.code === '42501') {
+          console.error("[api] RLS POLICY ERROR - Row Level Security is blocking the operation")
+          console.error("[api] You need to create RLS policies for subcategories table")
+        }
+        
+        // Не откатываем категорию, просто логируем ошибку
+        console.error("⚠️ Category created, but subcategories failed")
+        
+        // Возвращаем категорию без подкатегорий
+        const result = {
+          ...category,
+          subs: []
+        }
+        
+        console.timeEnd('[api] POST /api/categories')
+        return NextResponse.json(result, { status: 201 })
+      } else {
+        console.log('[api] Subcategories created successfully:', subcategories)
+      }
+    } else {
+      console.log('[api] No subcategories to create')
+    }
+
+    // Возвращаем категорию с подкатегориями
+    const result = {
+      ...category,
+      subs: subs.map((sub: any, index: number) => ({
+        id: sub.id || `temp-${index}`,
+        name: sub.name
+      }))
+    }
+
+    console.log('[api] Returning result:', result)
+    console.timeEnd('[api] POST /api/categories')
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    console.error("❌ Критическая ошибка в categories POST:", error)
+    console.error("[api] Critical error in categories POST:", error)
+    console.timeEnd('[api] POST /api/categories')
     return NextResponse.json({ 
       error: "Failed to create category", 
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
+      code: 'INTERNAL_ERROR'
     }, { status: 500 })
   }
 }

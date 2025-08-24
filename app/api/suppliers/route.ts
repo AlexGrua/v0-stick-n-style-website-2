@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ items: [], total: 0 }, { status: 500 })
     }
 
-    const mappedSuppliers = (suppliers || []).map((supplier) => ({
+    const mappedSuppliers = (suppliers || []).map((supplier: any) => ({
       id: supplier.id,
       code: `S${supplier.id.toString().padStart(3, '0')}`, // Генерируем код, так как колонки code нет
       shortName: supplier.name, // Using name as shortName for frontend compatibility
@@ -60,8 +60,26 @@ export async function POST(request: Request) {
 
     const payload = await request.json()
 
-    if (!payload.companyName && !payload.shortName) {
-      return NextResponse.json({ error: "Company name is required" }, { status: 400 })
+    // Валидация обязательных полей
+    if (!payload.shortName && !payload.companyName) {
+      return NextResponse.json({ 
+        error: "Company name or short name is required",
+        details: "Please provide either company name or short name"
+      }, { status: 400 })
+    }
+
+    if (!payload.contactPerson) {
+      return NextResponse.json({ 
+        error: "Contact person is required",
+        details: "Please provide contact person name"
+      }, { status: 400 })
+    }
+
+    if (!payload.categories || payload.categories.length === 0) {
+      return NextResponse.json({ 
+        error: "Categories are required",
+        details: "Please select at least one category"
+      }, { status: 400 })
     }
 
     const supplierData = {
@@ -71,7 +89,7 @@ export async function POST(request: Request) {
       address: payload.address || "",
       contact_person: payload.contactPerson || "",
       categories: payload.categories || [],
-      status: payload.status || "pending",
+      status: payload.status || "active",
       notes: payload.notes || "",
     }
 
@@ -79,7 +97,26 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Error creating supplier:", error)
-      return NextResponse.json({ error: "Failed to create supplier" }, { status: 500 })
+      
+      // Обработка специфических ошибок базы данных
+      if (error.code === '23505') {
+        return NextResponse.json({ 
+          error: "Supplier already exists",
+          details: "A supplier with this name already exists"
+        }, { status: 400 })
+      }
+      
+      if (error.code === '23502') {
+        return NextResponse.json({ 
+          error: "Missing required fields",
+          details: "Some required fields are missing"
+        }, { status: 400 })
+      }
+      
+      return NextResponse.json({ 
+        error: "Failed to create supplier",
+        details: error.message || "Database error occurred"
+      }, { status: 500 })
     }
 
     const responseData = {
@@ -98,6 +135,9 @@ export async function POST(request: Request) {
     return NextResponse.json(responseData, { status: 201 })
   } catch (error) {
     console.error("Error in suppliers POST:", error)
-    return NextResponse.json({ error: "Failed to create supplier" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error",
+      details: "An unexpected error occurred while creating the supplier"
+    }, { status: 500 })
   }
 }

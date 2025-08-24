@@ -508,6 +508,7 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
       id: result.data.id,
       name: result.data.name,
       slug: result.data.slug,
+      status: result.data.status, // Добавляем статус
       subs: result.data.subs || [],
       createdAt: result.data.created_at,
       updatedAt: result.data.updated_at,
@@ -533,6 +534,7 @@ export async function getCategoryById(id: string): Promise<Category | null> {
       id: data.id,
       name: data.name,
       slug: data.slug,
+      status: data.status, // Добавляем статус
       subs: data.subs || [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,
@@ -548,6 +550,7 @@ export async function updateCategory(id: string, updates: Partial<Category>): Pr
     const categoryData = {
       name: updates.name,
       slug: updates.slug,
+      status: updates.status, // Добавляем поддержку статуса
       // Убираем subs - они управляются триггерами
       updated_at: new Date().toISOString(),
     }
@@ -563,6 +566,7 @@ export async function updateCategory(id: string, updates: Partial<Category>): Pr
       id: data.id,
       name: data.name,
       slug: data.slug,
+      status: data.status, // Добавляем статус в возвращаемые данные
       subs: data.subs || [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,

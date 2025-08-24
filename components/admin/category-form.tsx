@@ -10,12 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { Category } from "@/lib/types"
+import { useErrorHandler } from "@/hooks/use-error-handler"
 
 const schema = z.object({
   id: z.string().optional(),
   name: z.string().min(2),
   slug: z.string().optional(),
-  subs: z.array(z.object({ id: z.string().optional(), name: z.string().min(1) })).default([]),
+  subs: z.array(z.object({ id: z.string().optional(), name: z.string().min(1) })),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -31,6 +32,7 @@ export function CategoryForm({
   category: Category | null
   onSuccess?: () => void
 }) {
+  const { handleApiError, handleSuccess } = useErrorHandler()
   const [isSaving, setIsSaving] = useState(false)
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -44,7 +46,10 @@ export function CategoryForm({
         id: String(category.id), // Ensure ID is string
         name: category.name,
         slug: category.slug,
-        subs: category.subs || [],
+        subs: (category.subs || []).map(sub => ({ 
+          id: sub.id ? String(sub.id) : undefined, 
+          name: sub.name 
+        })),
       })
     } else {
       console.log("[v0] Resetting form for new category")
@@ -64,28 +69,40 @@ export function CategoryForm({
 
       console.log("[v0] Making request to:", url, "with method:", method)
 
+      // Нормализуем данные подкатегорий
+      const normalizedSubs = (values.subs || [])
+        .map((s: any) => (typeof s === 'string' ? { name: s } : { name: s?.name || '' }))
+        .filter((s: any) => s.name.trim().length > 0)
+
+      const payload = {
+        ...values,
+        subs: normalizedSubs,
+      }
+
+      console.log("[v0] Normalized payload:", payload)
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...values,
-          subs: values.subs.map((s) => ({ id: s.id ?? undefined, name: s.name })),
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
-        const errorText = await res.text()
-        console.error("[v0] Save failed:", errorText)
-        throw new Error(`Save failed: ${errorText}`)
+        const errorData = await res.json().catch(() => ({ error: "Save failed" }))
+        console.error("[v0] API error response:", errorData)
+        handleApiError(errorData, "Save failed")
+        return
       }
 
       const result = await res.json()
       console.log("[v0] Category saved successfully:", result)
 
+      handleSuccess("Category saved successfully")
       onSuccess?.()
       onOpenChange(false)
     } catch (error) {
-      console.error("[v0] Save error:", error)
+      console.error("[v0] Error in handleSave:", error)
+      handleApiError(error, "Failed to save category")
     } finally {
       setIsSaving(false)
     }

@@ -5,13 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ArrowUpDown, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2, Copy, Plus } from 'lucide-react'
+import { UnifiedTable, TableColumn, TableAction } from "@/components/admin/unified-table"
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2, Copy, Plus, CheckCircle, XCircle } from 'lucide-react'
 import type { Supplier, SupplierStatus } from "@/lib/suppliers-store"
 import type { Category } from "@/lib/types"
 import { SupplierForm } from "@/components/admin/supplier-form"
-import { useToast } from "@/hooks/use-toast"
+import { useErrorHandler } from "@/hooks/use-error-handler"
 import { cn } from "@/lib/utils"
 
 async function loadSuppliers(params: { search?: string; status?: SupplierStatus | "all" }) {
@@ -49,7 +48,7 @@ type SortKey = "id" | "code" | "shortName" | "companyName" | "status" | "categor
 type SortDir = "asc" | "desc"
 
 export default function SuppliersPage() {
-  const { toast } = useToast()
+  const { handleApiError, handleSuccess } = useErrorHandler()
 
   const [search, setSearch] = React.useState("")
   const [status, setStatus] = React.useState<SupplierStatus | "all">("all")
@@ -73,25 +72,58 @@ export default function SuppliersPage() {
       setTotal(sup.total)
       setCategories(cats.items)
     } catch (e: any) {
-      toast({ title: "Error", description: String(e.message || e), variant: "destructive" })
+      handleApiError(e, "Failed to load suppliers")
     } finally {
       setLoading(false)
     }
-  }, [search, status, toast])
+  }, [search, status, handleApiError])
 
   React.useEffect(() => {
     reload()
   }, [reload])
 
-  const onDelete = async (id: string) => {
+  const onDelete = async (supplier: Supplier) => {
     if (!confirm("Delete this supplier?")) return
     try {
-      const res = await fetch(`/api/suppliers/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Delete failed")
-      toast({ title: "Supplier deleted" })
+      const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" })
+      const data = await res.json()
+      
+      if (!res.ok) {
+        handleApiError(data, "Delete failed")
+        return
+      }
+      
+      handleSuccess("Supplier deleted")
       reload()
     } catch (e: any) {
-      toast({ title: "Error", description: String(e.message || e), variant: "destructive" })
+      handleApiError(e, "Failed to delete supplier")
+    }
+  }
+
+  const onToggleStatus = async (supplier: Supplier) => {
+    const newStatus = supplier.status === "active" ? "inactive" : "active"
+    const actionText = newStatus === "active" ? "activate" : "deactivate"
+    
+    if (!confirm(`Are you sure you want to ${actionText} this supplier?`)) return
+    
+    try {
+      const res = await fetch(`/api/suppliers/${supplier.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) {
+        handleApiError(data, "Status update failed")
+        return
+      }
+      
+      handleSuccess("Status updated", `Supplier ${actionText}d successfully`)
+      reload()
+    } catch (e: any) {
+      handleApiError(e, "Failed to update supplier status")
     }
   }
 
@@ -100,276 +132,202 @@ export default function SuppliersPage() {
     [categories],
   )
 
-  const sortedItems = React.useMemo(() => {
-    const arr = [...items]
-    const val = (s: Supplier): string => {
-      switch (sortKey) {
-        case "id":
-          return s.id.toLowerCase()
-        case "code":
-          return (s.code || "").toLowerCase()
-        case "shortName":
-          return (s.shortName || "").toLowerCase()
-        case "companyName":
-          return (s.companyName || "").toLowerCase()
-        case "status":
-          return (s.status || "").toLowerCase()
-        case "categories":
-          return (s.categories || [])
-            .map((slug) => categoryName(slug).toLowerCase())
-            .sort()
-            .join(",")
-      }
-    }
-    arr.sort((a, b) => {
-      const A = val(a)
-      const B = val(b)
-      if (A < B) return sortDir === "asc" ? -1 : 1
-      if (A > B) return sortDir === "asc" ? 1 : -1
-      return 0
-    })
-    return arr
-  }, [items, sortKey, sortDir, categoryName])
-
-  const onSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortKey(key)
-      setSortDir("asc")
-    }
+  const handleSearch = (searchTerm: string) => {
+    setSearch(searchTerm)
   }
 
-  const SortIcon = ({ active }: { active: boolean }) =>
-    active ? (
-      sortDir === "asc" ? (
-        <ChevronUp className="ml-1 h-3 w-3" />
-      ) : (
-        <ChevronDown className="ml-1 h-3 w-3" />
+  const handleSort = (field: string, direction: 'asc' | 'desc') => {
+    setSortKey(field as SortKey)
+    setSortDir(direction)
+  }
+
+  const filteredAndSortedItems = React.useMemo(() => {
+    let filteredItems = items
+
+    // Sort
+    filteredItems = [...filteredItems].sort((a, b) => {
+      let aValue: any = a[sortKey as keyof Supplier]
+      let bValue: any = b[sortKey as keyof Supplier]
+
+      if (sortKey === "categories") {
+        aValue = (a.categories || []).length
+        bValue = (b.categories || []).length
+      }
+
+      if (typeof aValue === "string") aValue = aValue.toLowerCase()
+      if (typeof bValue === "string") bValue = bValue.toLowerCase()
+
+      if (sortDir === "asc") {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
+
+    return filteredItems
+  }, [items, sortKey, sortDir])
+
+  // Define table columns
+  const columns: TableColumn[] = [
+    {
+      key: "id",
+      label: "ID",
+      sortable: true,
+      className: "font-mono text-sm",
+      render: (value) => `ID-${value}`
+    },
+    {
+      key: "code",
+      label: "Code",
+      sortable: true,
+      className: "font-mono text-sm font-medium"
+    },
+    {
+      key: "shortName",
+      label: "Short Name",
+      sortable: true,
+      className: "font-medium"
+    },
+    {
+      key: "companyName",
+      label: "Company Name",
+      sortable: true
+    },
+    {
+      key: "contactPerson",
+      label: "Contact Person",
+      render: (value) => value || '-'
+    },
+    {
+      key: "contactEmail",
+      label: "Email",
+      render: (value) => value || '-'
+    },
+    {
+      key: "contactPhone",
+      label: "Phone",
+      render: (value) => value || '-'
+    },
+    {
+      key: "categories",
+      label: "Categories",
+      sortable: true,
+      render: (value) => {
+        if (value && Array.isArray(value) && value.length > 0) {
+          return (
+            <div className="flex flex-wrap gap-1">
+              {value.map((cat: string, index: number) => (
+                <Badge key={index} variant="secondary" className="text-xs">
+                  {categoryName(cat)}
+                </Badge>
+              ))}
+            </div>
+          )
+        }
+        return <span className="text-sm text-muted-foreground">No categories</span>
+      }
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (value) => (
+        <Badge variant={value === "active" ? "default" : "secondary"}>
+          {value || "inactive"}
+        </Badge>
       )
-    ) : (
-      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-    )
+    }
+  ]
+
+  // Define table actions
+  const actions: TableAction[] = [
+    {
+      key: "edit",
+      label: "Edit",
+      icon: <Pencil className="mr-2 h-4 w-4" />,
+      onClick: (supplier) => {
+        setEdit(supplier)
+        setOpenForm(true)
+      }
+    },
+    {
+      key: "duplicate",
+      label: "Duplicate",
+      icon: <Copy className="mr-2 h-4 w-4" />,
+      onClick: (supplier) => {
+        setInitial(supplier)
+        setOpenForm(true)
+      }
+    },
+    {
+      key: "toggleStatus",
+      label: (supplier: Supplier) => supplier.status === "active" ? "Deactivate" : "Activate",
+      icon: (supplier: Supplier) => supplier.status === "active" 
+        ? <XCircle className="mr-2 h-4 w-4" />
+        : <CheckCircle className="mr-2 h-4 w-4" />,
+      onClick: onToggleStatus,
+      variant: "secondary"
+    },
+    {
+      key: "delete",
+      label: "Delete",
+      icon: <Trash2 className="mr-2 h-4 w-4" />,
+      onClick: onDelete,
+      variant: "destructive"
+    }
+  ]
 
   return (
-    <div className="w-full px-6 xl:px-[50px] py-6">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-semibold">Suppliers</h1>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search by ID, short name, company…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-[280px]"
-          />
-          <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="approved">approved</SelectItem>
-              <SelectItem value="pending">pending</SelectItem>
-              <SelectItem value="blocked">blocked</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={() => {
-              setEdit(null)
-              setInitial(null)
-              setOpenForm(true)
-            }}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            New Supplier
-          </Button>
-        </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Suppliers Management</h1>
+        <p className="text-muted-foreground mt-2">
+          Manage product suppliers and their information
+        </p>
       </div>
 
-      <div className={cn("overflow-hidden rounded-md border", loading ? "opacity-70" : "opacity-100")}>
-        <div className="max-w-full overflow-auto">
-          <Table>
-            <TableCaption className="text-left">
-              {loading ? "Loading…" : `${total} supplier${total === 1 ? "" : "s"}`}
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("id")}
-                  aria-sort={sortKey === "id" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[110px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    ID <SortIcon active={sortKey === "id"} />
-                  </span>
-                </TableHead>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("code")}
-                  aria-sort={sortKey === "code" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[100px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    Code <SortIcon active={sortKey === "code"} />
-                  </span>
-                </TableHead>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("shortName")}
-                  aria-sort={sortKey === "shortName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[150px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    Short Name <SortIcon active={sortKey === "shortName"} />
-                  </span>
-                </TableHead>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("companyName")}
-                  aria-sort={sortKey === "companyName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[260px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    Company <SortIcon active={sortKey === "companyName"} />
-                  </span>
-                </TableHead>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("status")}
-                  aria-sort={sortKey === "status" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[140px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    Status <SortIcon active={sortKey === "status"} />
-                  </span>
-                </TableHead>
-                <TableHead
-                  role="button"
-                  onClick={() => onSort("categories")}
-                  aria-sort={sortKey === "categories" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  className="min-w-[260px] cursor-pointer select-none"
-                >
-                  <span className="inline-flex items-center">
-                    Categories <SortIcon active={sortKey === "categories"} />
-                  </span>
-                </TableHead>
-                <TableHead className="min-w-[96px] text-right">{""}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedItems.map((s) => (
-                <TableRow
-                  key={s.id}
-                  onClick={() => {
-                    setEdit(s)
-                    setInitial(null)
-                    setOpenForm(true)
-                  }}
-                  className="cursor-pointer hover:bg-muted/50"
-                >
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">
-                      {s.id}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs font-mono">
-                      {s.code}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{s.shortName}</TableCell>
-                  <TableCell className="truncate">{s.companyName}</TableCell>
-                  <TableCell>
-                    <Badge className="capitalize">{s.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(s.categories || []).map((slug) => (
-                        <Badge key={slug} variant="outline" className="text-xs">
-                          {categoryName(slug)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Actions" onClick={(e) => e.stopPropagation()}>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setEdit(s)
-                            setInitial(null)
-                            setOpenForm(true)
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setEdit(null)
-                            setInitial({
-                              id: "",
-                              shortName: `${s.shortName} Copy`,
-                              companyName: s.companyName,
-                              contactPerson: s.contactPerson,
-                              contactEmail: s.contactEmail,
-                              contactPhone: s.contactPhone,
-                              messenger: s.messenger,
-                              website: s.website,
-                              categories: s.categories,
-                              status: s.status,
-                            })
-                            setOpenForm(true)
-                          }}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-red-600 focus:text-red-600"
-                          onClick={() => onDelete(s.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!loading && sortedItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                    No suppliers found
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </div>
+      {/* Status Filter */}
+      <div className="mb-4">
+        <Select value={status} onValueChange={(value: SupplierStatus | "all") => setStatus(value)}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      <UnifiedTable
+        data={filteredAndSortedItems}
+        columns={columns}
+        actions={actions}
+        total={total}
+        loading={loading}
+        searchPlaceholder="Search suppliers..."
+        onSearch={handleSearch}
+        onSort={handleSort}
+        sortField={sortKey}
+        sortDirection={sortDir}
+        onAdd={() => {
+          setEdit(null)
+          setInitial(null)
+          setOpenForm(true)
+        }}
+        addButtonLabel="Add Supplier"
+        emptyMessage="No suppliers found"
+        loadingMessage="Loading suppliers..."
+      />
 
       <SupplierForm
         open={openForm}
-        onOpenChange={(v) => {
-          setOpenForm(v)
-          if (!v) {
-            setEdit(null)
-            setInitial(null)
-          }
-        }}
+        onOpenChange={setOpenForm}
         supplier={edit}
         initial={initial || undefined}
         categories={categories}
-        onSaved={() => reload()}
+        onSuccess={reload}
       />
     </div>
   )
