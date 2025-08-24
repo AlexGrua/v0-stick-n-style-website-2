@@ -33,8 +33,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
         const stats = {
           totalProducts: products?.length || 0,
-          inStock: products?.filter((p) => p.in_stock).length || 0,
-          outOfStock: products?.filter((p) => !p.in_stock).length || 0,
+          inStock: products?.filter((p: any) => p.in_stock).length || 0,
+          outOfStock: products?.filter((p: any) => !p.in_stock).length || 0,
         }
 
         console.log("[v0] Stats calculated:", stats)
@@ -57,12 +57,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .from("products")
       .select(`
         *,
-        categories (
-          id,
-          name,
-          slug,
-          subs
-        )
+        categories:category_id(id, name, slug, description)
       `)
       .eq("id", productId)
       .single()
@@ -99,28 +94,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     console.log("[v0] Product found:", { id: product.id, name: product.name })
 
-    let subcategoryName = ""
-    const subId = product.specifications?.sub || product.specifications?.subcategory_id || product.sub
-    if (subId && product.categories?.subs) {
-      const subcategory = product.categories.subs.find((sub: any) => sub.id === subId)
-      subcategoryName = subcategory?.name || ""
-      console.log("[v0] Subcategory mapping:", { subId, subcategoryName })
-    }
-
-    let supplierName = ""
-    let supplierId = null
-    if (product.specifications?.supplierId) {
-      supplierId = product.specifications.supplierId
-      const { data: supplier } = await supabase
-        .from("suppliers")
-        .select("shortName, companyName")
-        .eq("id", supplierId)
-        .single()
-
-      if (supplier) {
-        supplierName = supplier.shortName || supplier.companyName || ""
-      }
-    }
+    // Extract data from JOINs according to actual schema
+    const categoryInfo = product.categories || {}
+    const subcategoryInfo = {} // Временно отключаем
+    const supplierInfo = {} // Получаем из specifications
 
     // Маппинг данных для frontend
     const specs = product.specifications || {}
@@ -153,15 +130,29 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       avgBoxM3 = Math.round((avgBoxM3 / totalThicknesses) * 1000) / 1000
     }
 
+    // Get status from specifications or fallback to product.status
+    const productStatus = specs.status || product.status || 'inactive'
+
     const mappedProduct = {
       ...product,
+      // IDs for forms and relations (actual schema)
+      categoryId: product.category_id,
+      subcategoryId: null, // Временно отключаем
+      supplierId: specs.supplierId || null,
+      // Names for display (from JOINs and specifications)
+      category: categoryInfo.name || "",
+      categorySlug: categoryInfo.slug || "",
+      subcategory: "", // Временно отключаем
+      subcategorySlug: "", // Временно отключаем
+      supplier: "", // Получаем из specifications
+      supplierCode: specs.supplierId || "",
+      supplierContact: "", // Получаем из specifications
+      supplierEmail: "", // Получаем из specifications
+              supplierPhone: "", // Получаем из specifications
+      // Core product data
       sku: product.sku || specs.sku || "",
       thumbnailUrl: product.image_url || "",
-      sub: subcategoryName,
-      subcategoryName: subcategoryName,
-      subcategory_id: subId, // Add subcategory_id for form
-      supplierName,
-      supplierId,
+      status: productStatus,
       // Legacy fields for backward compatibility
       sizes: sizesFromTechSpecs.length > 0 ? sizesFromTechSpecs : specs.sizes || [],
       thickness: thicknessFromTechSpecs.length > 0 ? thicknessFromTechSpecs : specs.thickness || [],
@@ -170,8 +161,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       boxM3: avgBoxM3 || specs.boxM3 || 0,
       technicalDescription: specs.technicalDescription || "",
       minOrderBoxes: specs.minOrderBoxes || 1,
-      category: product.categories?.name || "",
-      categorySlug: product.categories?.slug || "",
       // Structured data for forms
       technicalSpecifications: techSpecs,
       colorVariants: specs.colorVariants || [],
@@ -230,13 +219,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       updated_at: new Date().toISOString(),
     }
 
-    // Basic fields
+    // Basic fields according to unified schema
     if (body.name) updateData.name = body.name
     if (body.description !== undefined) updateData.description = body.description
     if (body.price !== undefined) updateData.price = body.price
-    if (body.category_id) updateData.category_id = Number.parseInt(body.category_id)
+    if (body.sku) updateData.sku = body.sku
+    if (body.category_id) updateData.category_id = Number(body.category_id)
+    // Временно отключаем subcategory_id и supplier_id - они хранятся в specifications
+    // if (body.subcategory_id) updateData.subcategory_id = Number(body.subcategory_id)
+    // if (body.supplier_id) updateData.supplier_id = Number(body.supplier_id)
     if (body.image_url) updateData.image_url = body.image_url
     if (body.in_stock !== undefined) updateData.in_stock = body.in_stock
+    if (body.is_featured !== undefined) updateData.is_featured = body.is_featured
 
     // Generate slug from name if not provided
     if (body.name && !body.slug) {
@@ -244,42 +238,48 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       updateData.slug = baseSlug
     }
 
-    if (body.specifications) {
-      // Get current specifications to merge with updates
-      const { data: currentProduct } = await supabase
-        .from("products")
-        .select("specifications")
-        .eq("id", productId)
-        .single()
+    // Handle status update (can come from body.status or body.specifications.status)
+    const statusToUpdate = body.status || body.specifications?.status
 
-      const currentSpecs = currentProduct?.specifications || {}
+    // Get current specifications to merge with updates
+    const { data: currentProduct } = await supabase
+      .from("products")
+      .select("specifications")
+      .eq("id", productId)
+      .single()
 
-      // Merge current specs with new specs
-      updateData.specifications = {
-        ...currentSpecs,
-        ...body.specifications,
-        // Ensure SKU is stored in specifications
-        sku: body.sku || body.specifications?.sku || currentSpecs.sku,
-        // Ensure subcategory_id is stored correctly
-        subcategory_id: body.subcategory_id || body.specifications?.subcategory_id || currentSpecs.subcategory_id,
-        // Also store sub for backward compatibility
-        sub: body.subcategory_id || body.specifications?.subcategory_id || currentSpecs.subcategory_id,
-      }
+    const currentSpecs = currentProduct?.specifications || {}
 
-      // console.log("[v0] Updated specifications:", updateData.specifications)
+    // Prepare specifications update
+    const specsUpdate = {
+      ...currentSpecs,
+      ...body.specifications,
+      // Ensure SKU is stored in specifications for backward compatibility
+      sku: body.sku || body.specifications?.sku || currentSpecs.sku,
     }
 
-    // Validate category exists
-    if (updateData.category_id) {
+    // Update status in specifications if provided
+    if (statusToUpdate) {
+      specsUpdate.status = statusToUpdate
+      console.log("[v0] Updating product status to:", statusToUpdate)
+    }
+
+    // Always update specifications to ensure status is properly stored
+    updateData.specifications = specsUpdate
+
+    console.log("[v0] Updated specifications:", updateData.specifications)
+
+    // Validate category exists (if provided as ID)
+    if (body.category_id) {
       const { data: category, error: categoryError } = await supabase
         .from("categories")
         .select("id")
-        .eq("id", updateData.category_id)
+        .eq("id", body.category_id)
         .single()
 
       if (categoryError || !category) {
-        console.error(`Category not found: ${updateData.category_id}`)
-        return NextResponse.json({ error: `Category not found: ${updateData.category_id}` }, { status: 400 })
+        console.error(`Category not found: ${body.category_id}`)
+        return NextResponse.json({ error: `Category not found: ${body.category_id}` }, { status: 400 })
       }
     }
 

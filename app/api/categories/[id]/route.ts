@@ -62,18 +62,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       console.log("[v0] Generated slug:", patch.slug)
     }
 
-    if (Array.isArray(patch?.subs)) {
-      console.log("[v0] Processing subs array:", patch.subs)
-      patch.subs = patch.subs.map((s: any) => {
-        if (typeof s === "string") {
-          return { id: generateUUID(), name: s }
-        }
-        if (typeof s === "object" && s.name && !s.id) {
-          return { ...s, id: generateUUID() }
-        }
-        return s
-      })
-      console.log("[v0] Processed subs:", patch.subs)
+    // Убираем обработку subs - они управляются через отдельный API
+    if (patch?.subs) {
+      console.log("[v0] Ignoring subs in category update - use /api/categories/[id]/subcategories instead")
+      delete patch.subs
     }
 
     console.log("[v0] Calling updateCategory with:", id, patch)

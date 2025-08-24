@@ -2,6 +2,7 @@ export type SupplierStatus = "approved" | "pending" | "blocked"
 
 export type Supplier = {
   id: string
+  code?: string
   shortName: string
   companyName: string
   contactPerson: string

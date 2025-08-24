@@ -42,6 +42,8 @@ export function ProductsTableNew({
     productsCount: safeProducts.length,
     total: total,
     loading: loading,
+    data: data,
+    safeProducts: safeProducts,
   })
 
   const getCategoryName = (category: string) => {
@@ -52,8 +54,8 @@ export function ProductsTableNew({
     return sub || "-"
   }
 
-  const getSupplierName = (supplierId?: string) => {
-    return supplierId ? `Supplier ${supplierId}` : "-"
+  const getSupplierName = (supplier: string) => {
+    return supplier || "-"
   }
 
   // Filter and sort products
@@ -170,8 +172,8 @@ export function ProductsTableNew({
                   </TableCell>
                   <TableCell className="font-medium">{product.name || "Unnamed Product"}</TableCell>
                   <TableCell>{getCategoryName(product.category || "")}</TableCell>
-                  <TableCell>{getSubcategoryName(product.sub || "")}</TableCell>
-                  <TableCell>{getSupplierName()}</TableCell>
+                  <TableCell>{getSubcategoryName(product.subcategory || "")}</TableCell>
+                  <TableCell>{getSupplierName(product.supplier || "")}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{product.technicalSpecifications?.length || 0}</Badge>
                   </TableCell>
@@ -208,7 +210,9 @@ export function ProductsTableNew({
                           <Copy className="mr-2 h-4 w-4" />
                           Duplicate
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onToggleStatus(product)}>Toggle Status</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onToggleStatus(product)}>
+                          {product.status === "active" ? "Deactivate" : "Activate"}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onMarkDiscontinued(product)}>
                           Mark Discontinued
                         </DropdownMenuItem>

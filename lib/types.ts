@@ -41,6 +41,11 @@ export type Product = {
   description?: string
   category: CategoryKey
   sub: string
+  subcategory?: string // New field from API
+  supplier?: string // New field from API
+  categoryId?: number // New field from API
+  subcategoryId?: number // New field from API
+  supplierId?: string // New field from API
   // Legacy fields for backward compatibility (will be deprecated)
   thickness: string[] 
   sizes: string[]

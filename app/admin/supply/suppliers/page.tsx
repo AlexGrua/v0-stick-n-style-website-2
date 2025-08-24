@@ -24,6 +24,7 @@ async function loadSuppliers(params: { search?: string; status?: SupplierStatus 
   
   const mappedItems = (data.items || []).map((item: any) => ({
     id: item.id,
+    code: item.code || `S${item.id.toString().padStart(3, '0')}`,
     shortName: item.short_name || item.shortName,
     companyName: item.company_name || item.companyName,
     contactPerson: item.contact_person || item.contactPerson,
@@ -44,7 +45,7 @@ async function loadCategories() {
   return (await res.json()) as { items: Category[] }
 }
 
-type SortKey = "id" | "shortName" | "companyName" | "status" | "categories"
+type SortKey = "id" | "code" | "shortName" | "companyName" | "status" | "categories"
 type SortDir = "asc" | "desc"
 
 export default function SuppliersPage() {
@@ -105,6 +106,8 @@ export default function SuppliersPage() {
       switch (sortKey) {
         case "id":
           return s.id.toLowerCase()
+        case "code":
+          return (s.code || "").toLowerCase()
         case "shortName":
           return (s.shortName || "").toLowerCase()
         case "companyName":
@@ -203,6 +206,16 @@ export default function SuppliersPage() {
                 </TableHead>
                 <TableHead
                   role="button"
+                  onClick={() => onSort("code")}
+                  aria-sort={sortKey === "code" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+                  className="min-w-[100px] cursor-pointer select-none"
+                >
+                  <span className="inline-flex items-center">
+                    Code <SortIcon active={sortKey === "code"} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  role="button"
                   onClick={() => onSort("shortName")}
                   aria-sort={sortKey === "shortName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                   className="min-w-[150px] cursor-pointer select-none"
@@ -258,6 +271,11 @@ export default function SuppliersPage() {
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
                       {s.id}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs font-mono">
+                      {s.code}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-medium">{s.shortName}</TableCell>

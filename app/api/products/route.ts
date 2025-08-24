@@ -42,89 +42,145 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const q = (url.searchParams.get("q") || "").trim().toLowerCase()
     const category = (url.searchParams.get("category") || "").trim()
+    const subcategory = (url.searchParams.get("subcategory") || "").trim()
+    const supplier = (url.searchParams.get("supplier") || "").trim()
     const includeInactive = url.searchParams.get("includeInactive") !== "false"
+    const page = Number.parseInt(url.searchParams.get("page") || "1")
+    const limit = Number.parseInt(url.searchParams.get("limit") || "20")
+    const offset = (page - 1) * limit
 
-    console.log("[v0] Query params:", { q, category, includeInactive })
+    console.log("[v0] Query params:", { q, category, subcategory, supplier, includeInactive, page, limit })
 
-    let query = supabase.from("products").select(`
-        *,
-        categories (
-          id,
-          name,
-          slug,
-          subs
-        )
-      `)
+    // Simplified query without JOINs to avoid timeout issues
+    let query = supabase.from("products").select("*", { count: "exact" })
 
     if (!includeInactive) {
       query = query.eq("in_stock", true)
     }
 
     if (q) {
-      query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%,specifications->>sku.ilike.%${q}%`)
+      query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%,sku.ilike.%${q}%`)
     }
 
     if (category) {
-      try {
-        const { data: categoryData } = await supabase
-          .from("categories")
-          .select("id")
-          .or(`slug.eq.${category},name.eq.${category}`)
-          .single()
+      // Support both category ID and category name/slug
+      if (!isNaN(Number(category))) {
+        query = query.eq("category_id", Number(category))
+      } else {
+        try {
+          const { data: categoryData } = await supabase
+            .from("categories")
+            .select("id")
+            .or(`name.eq.${category},slug.eq.${category}`)
+            .single()
 
-        if (categoryData) {
-          query = query.eq("category_id", categoryData.id)
+          if (categoryData) {
+            query = query.eq("category_id", categoryData.id)
+          }
+        } catch (categoryError) {
+          console.error("[v0] Error fetching category:", categoryError)
         }
-      } catch (categoryError) {
-        console.error("[v0] Error fetching category:", categoryError)
-        // Continue without category filter
       }
     }
 
+    // Временно отключаем фильтр по subcategory
+    // if (subcategory) {
+    //   // Support both subcategory ID and subcategory name/slug
+    //   if (!isNaN(Number(subcategory))) {
+    //     query = query.eq("subcategory_id", Number(subcategory))
+    //   } else {
+    //     try {
+    //       const { data: subcategoryData } = await supabase
+    //         .from("subcategories")
+    //         .select("id")
+    //         .or(`name.eq.${subcategory},slug.eq.${subcategory}`)
+    //         .single()
+
+    //       if (subcategoryData) {
+    //     query = query.eq("subcategory_id", subcategoryData.id)
+    //       }
+    //     } catch (subcategoryError) {
+    //       console.error("[v0] Error fetching subcategory:", subcategoryError)
+    //     }
+    //   }
+    // }
+
+    if (supplier) {
+      // Filter by supplier using specifications JSONB
+      query = query.filter('specifications->>supplierId', 'eq', supplier)
+    }
+
+    // Add pagination
+    query = query.range(offset, offset + limit - 1)
+
     console.log("[v0] Executing products query...")
     
-    // Add timeout for the query (reduced to 10 seconds)
-    const queryPromise = query
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Query timeout')), 10000)
-    )
-    
-    let products, error
-    try {
-      const result = await Promise.race([queryPromise, timeoutPromise]) as any
-      products = result.data
-      error = result.error
-    } catch (timeoutError) {
-      console.error("[v0] Query timeout, returning empty result:", timeoutError)
-      return NextResponse.json({ items: [], total: 0 })
-    }
+    // Execute query without timeout
+    const result = await query
+    const error = result.error
 
     if (error) {
       console.error("[v0] Error fetching products:", error)
       return NextResponse.json({ items: [], total: 0 })
     }
 
+    const products = result.data || []
+    const total = result.count || 0
+
     console.log("[v0] Raw products fetched:", products?.length || 0)
 
-    let supplierMap = new Map()
-    try {
-      const { data: suppliers } = await supabase.from("suppliers").select("id, name")
-      supplierMap = new Map(suppliers?.map((s) => [s.id, s.name]) || [])
-    } catch (supplierError) {
-      console.error("[v0] Error fetching suppliers:", supplierError)
-      // Continue without suppliers
+    // Get unique category IDs to fetch category names efficiently
+    const categoryIds = [...new Set(products.map((p: any) => p.category_id).filter(Boolean))]
+    const categoryMap = new Map()
+
+    if (categoryIds.length > 0) {
+      try {
+        const { data: categories } = await supabase
+          .from("categories")
+          .select("id, name, slug")
+          .in("id", categoryIds)
+
+        if (categories) {
+          categories.forEach((cat: any) => {
+            categoryMap.set(cat.id, { name: cat.name, slug: cat.slug })
+          })
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching categories:", error)
+      }
     }
 
-    const mappedProducts = (products || []).map((product: any) => {
+    // Get unique supplier IDs to fetch supplier names efficiently
+    const supplierIds = [...new Set(products.map((p: any) => {
+      const specs = p.specifications || {}
+      return specs.supplierId
+    }).filter(Boolean))]
+    const supplierMap = new Map()
+
+    if (supplierIds.length > 0) {
+      try {
+        const { data: suppliers } = await supabase
+          .from("suppliers")
+          .select("id, name")
+          .in("id", supplierIds)
+
+        if (suppliers) {
+          suppliers.forEach((sup: any) => {
+            supplierMap.set(sup.id, sup.name)
+          })
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching suppliers:", error)
+      }
+    }
+
+    const mappedProducts = products.map((product: any) => {
       const specs = product.specifications || {}
 
-      let subcategoryName = ""
-      if (specs.sub && product.categories?.subs) {
-        const subcategory = product.categories.subs.find((sub: any) => sub.id === specs.sub)
-        subcategoryName = subcategory?.name || ""
-      }
-
-      const supplierName = specs.supplierId ? supplierMap.get(specs.supplierId) || `Supplier ${specs.supplierId}` : ""
+      // Extract data from actual schema (no JOINs)
+      const categoryInfo = {} // Получаем отдельно если нужно
+      const subcategoryInfo = {} // Временно отключаем
+      const supplierInfo = {} // Получаем из specifications
 
       const techSpecs = specs.technicalSpecifications || []
       const colorVariants = specs.colorVariants || []
@@ -156,14 +212,54 @@ export async function GET(req: Request) {
         avgBoxM3 = Math.round((avgBoxM3 / totalThicknesses) * 1000) / 1000
       }
 
+      // Get category info from specifications or category_id
+      let categoryName = ""
+      let categorySlug = ""
+      if (specs.categoryName) {
+        categoryName = specs.categoryName
+        categorySlug = specs.categorySlug || ""
+      } else if (product.category_id && categoryMap.has(product.category_id)) {
+        // Get from pre-fetched categories
+        const catInfo = categoryMap.get(product.category_id)
+        categoryName = catInfo.name
+        categorySlug = catInfo.slug
+      } else if (product.category_id) {
+        // Fallback: try to get from categories table
+        categoryName = `Category ${product.category_id}`
+        categorySlug = `category-${product.category_id}`
+      }
+
+      // Get subcategory info from specifications
+      let subcategoryName = ""
+      let subcategorySlug = ""
+      if (specs.subcategoryName) {
+        subcategoryName = specs.subcategoryName
+        subcategorySlug = specs.subcategorySlug || ""
+      } else if (specs.subs && specs.subs.length > 0) {
+        // Try to get from subs array in specifications
+        const firstSub = specs.subs[0]
+        subcategoryName = firstSub.name || ""
+        subcategorySlug = firstSub.slug || ""
+      }
+
       return {
         ...product,
+        // IDs for forms and relations
+        categoryId: product.category_id,
+        subcategoryId: null, // Временно отключаем
+        supplierId: specs.supplierId || null,
+        // Names for display
+        category: categoryName,
+        categorySlug: categorySlug,
+        subcategory: subcategoryName,
+        subcategorySlug: subcategorySlug,
+        supplier: supplierMap.get(specs.supplierId) || "",
+        supplierCode: specs.supplierId || "",
+        // Other mappings
         thumbnailUrl: product.image_url || "",
-        status: product.in_stock ? "active" : "inactive",
+        status: specs.status || (product.in_stock ? "active" : "inactive"),
         updatedAt: product.updated_at,
-        sku: specs.sku || `Product-${product.id}`,
-        sub: subcategoryName,
-        supplier: supplierName,
+        sku: product.sku || specs.sku || `Product-${product.id}`,
         // Structured data for forms and detailed views
         technicalSpecifications: techSpecs,
         colorVariants: colorVariants,
@@ -177,8 +273,6 @@ export async function GET(req: Request) {
         boxM3: avgBoxM3 || specs.boxM3 || 0,
         technicalDescription: specs.technicalDescription || "",
         minOrderBoxes: specs.minOrderBoxes || 1,
-        category: product.categories?.name || "",
-        categorySlug: product.categories?.slug || "",
         // Additional structured fields
         productSpecifications: specs.productSpecifications || {},
         interiorApplications: specs.interiorApplications || [],
@@ -188,7 +282,7 @@ export async function GET(req: Request) {
 
     console.log("[v0] Mapped products for frontend:", mappedProducts.length)
 
-    return NextResponse.json({ items: mappedProducts, total: mappedProducts.length })
+    return NextResponse.json({ items: mappedProducts, total: total })
   } catch (error) {
     console.error("[v0] Error in products GET:", error)
     // Return empty result instead of error to prevent page crashes
@@ -208,17 +302,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Category is required" }, { status: 400 })
     }
 
-    const { data: categoryExists, error: categoryError } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("id", body.category_id)
-      .single()
-
-    if (categoryError || !categoryExists) {
-      console.error("Category not found:", body.category_id, categoryError)
-      return NextResponse.json({ error: "Selected category does not exist" }, { status: 400 })
-    }
-
     const name: string = body.name || "New Product"
     const description: string = body.description || ""
     const price: number = body.price || 0
@@ -232,8 +315,7 @@ export async function POST(req: Request) {
 
     const specifications: any = {
       sku: sku,
-      sub: body.specifications?.sub || body.subcategory_id || "",
-      supplierId: body.specifications?.supplierId || body.supplier_id || null,
+      status: body.status || 'inactive',
       technicalDescription: body.technicalDescription || "",
       sizes: body.sizes || [],
       thickness: body.thickness || [],
@@ -265,13 +347,13 @@ export async function POST(req: Request) {
       .insert({
         name,
         description,
-        price,
         category_id,
         image_url,
-        images,
-        specifications,
+        price,
         in_stock,
         slug,
+        sku, // Добавляем SKU в отдельную колонку
+        specifications,
       })
       .select()
       .single()

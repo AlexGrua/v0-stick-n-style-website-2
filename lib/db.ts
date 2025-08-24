@@ -1,12 +1,12 @@
 import { supabaseAdmin } from "./supabase/server"
-import type { Product, Category, Container, Attribute, Settings, HomePageData } from "./types"
+import type { Product, Category, Attribute, Settings, HomePageData } from "./types"
 import { generateSku } from "./sku"
 
 type DBShape = {
   seeded: boolean
   products: Product[]
   categories: Category[]
-  containers: Container[]
+  containers: any[]
   attributes: Attribute[]
   settings: Settings
   homePage: HomePageData
@@ -68,15 +68,16 @@ export async function saveHomePageData(data: HomePageData): Promise<boolean> {
 function getDefaultHomePageData(): HomePageData {
   const now = new Date().toISOString()
   return {
-    hero: {
-      title: "Stick'N'Style",
-      subtitle: "Премиальные отделочные материалы",
-      description: "Создайте уникальный интерьер с нашими инновационными решениями для стен и полов",
-      backgroundImage: "/modern-interior-3d-panels.png",
-      ctaText: "Смотреть каталог",
-      ctaLink: "/catalog",
-      visible: true,
-    },
+         hero: {
+       title: "Stick'N'Style",
+       subtitle: "Премиальные отделочные материалы",
+       description: "Создайте уникальный интерьер с нашими инновационными решениями для стен и полов",
+       backgroundImage: "/modern-interior-3d-panels.png",
+       ctaText: "Смотреть каталог",
+       ctaLink: "/catalog",
+       buttons: [],
+       visible: true,
+     },
     advantages: {
       title: "Наши преимущества",
       subtitle: "Почему выбирают нас",
@@ -123,15 +124,17 @@ function getDefaultHomePageData(): HomePageData {
       ],
       visible: true,
     },
-    cooperation: {
-      title: "Сотрудничество",
-      subtitle: "Работаем с профессионалами",
-      description: "Специальные условия для дизайнеров, архитекторов и строительных компаний",
-      backgroundImage: "/fabric-texture-wall-panels.png",
-      ctaText: "Стать партнером",
-      ctaLink: "/partnership",
-      visible: true,
-    },
+         cooperation: {
+       title: "Сотрудничество",
+       subtitle: "Работаем с профессионалами",
+       description: "Специальные условия для дизайнеров, архитекторов и строительных компаний",
+       backgroundImage: "/fabric-texture-wall-panels.png",
+       ctaText: "Стать партнером",
+       ctaLink: "/partnership",
+       features: [],
+       buttons: [],
+       visible: true,
+     },
     customBlocks: [],
     updatedAt: now,
   }
@@ -218,34 +221,36 @@ export function seed() {
     },
   ]
 
-  // Seed a few products
-  const make = (partial: Partial<Product>): Product => ({
-    id: crypto.randomUUID(),
-    sku: partial.sku ?? generateSku((partial.category ?? "wall-panel") as any),
-    name: partial.name ?? "Sample",
-    description: partial.description,
-    technicalDescription: partial.description ?? "High-quality finish suitable for interiors.",
-    photos: { main: partial.thumbnailUrl, others: [] },
-    infographics: { main: "/abstract-geometric-shapes.png", others: [] },
-    colors: (partial.colors as any) ?? (defaultColors() as any),
-    category: (partial.category as any) ?? "wall-panel",
-    sub: partial.sub ?? "Sub 1",
-    thickness: partial.thickness ?? ["2 mm"],
-    sizes: partial.sizes ?? ["60×60cm"],
-    pcsPerBox: partial.pcsPerBox ?? 50,
-    boxKg: partial.boxKg ?? 31,
-    boxM3: partial.boxM3 ?? 1.2,
-    minOrderBoxes: 1,
-    status: (partial.status as any) ?? "active",
-    tags: [],
-    customFields: {},
-    thumbnailUrl: partial.thumbnailUrl,
-    gallery: [],
-    stockLevel: 0,
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
-  })
+     // Seed a few products
+   const make = (partial: Partial<Product>): Product => ({
+     id: crypto.randomUUID(),
+     sku: partial.sku ?? generateSku((partial.category ?? "wall-panel") as any),
+     name: partial.name ?? "Sample",
+     description: partial.description,
+     technicalDescription: partial.description ?? "High-quality finish suitable for interiors.",
+     photos: { main: partial.thumbnailUrl, others: [] },
+     infographics: { main: "/abstract-geometric-shapes.png", others: [] },
+     colors: (partial.colors as any) ?? (defaultColors() as any),
+     category: (partial.category as any) ?? "wall-panel",
+     sub: partial.sub ?? "Sub 1",
+     thickness: partial.thickness ?? ["2 mm"],
+     sizes: partial.sizes ?? ["60×60cm"],
+     pcsPerBox: partial.pcsPerBox ?? 50,
+     boxKg: partial.boxKg ?? 31,
+     boxM3: partial.boxM3 ?? 1.2,
+     minOrderBoxes: 1,
+     status: (partial.status as any) ?? "active",
+     tags: [],
+     customFields: {},
+     thumbnailUrl: partial.thumbnailUrl,
+     gallery: [],
+     stockLevel: 0,
+     version: 1,
+     technicalSpecifications: [],
+     colorVariants: [],
+     createdAt: now,
+     updatedAt: now,
+   })
 
   state.products = [
     make({ name: "A4", category: "wall-panel", sub: "Sub 1", thumbnailUrl: "/simple-wooden-panel.png" }),
@@ -338,34 +343,36 @@ export async function getProducts(): Promise<Product[]> {
       return []
     }
 
-    // Преобразуем данные из Supabase в формат Product
-    return (data || []).map((row) => ({
-      id: row.id,
-      sku: row.sku,
-      name: row.name,
-      description: row.description,
-      technicalDescription: row.technical_description,
-      photos: row.photos || { main: row.thumbnail_url, others: [] },
-      infographics: row.infographics || { main: "/abstract-geometric-shapes.png", others: [] },
-      colors: row.colors || [],
-      category: row.category,
-      sub: row.sub,
-      thickness: row.thickness || [],
-      sizes: row.sizes || [],
-      pcsPerBox: row.pcs_per_box || 0,
-      boxKg: row.box_kg || 0,
-      boxM3: row.box_m3 || 0,
-      minOrderBoxes: row.min_order_boxes || 1,
-      status: row.status,
-      tags: row.tags || [],
-      customFields: row.custom_fields || {},
-      thumbnailUrl: row.thumbnail_url,
-      gallery: row.gallery || [],
-      stockLevel: row.stock_level || 0,
-      version: row.version || 1,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
+         // Преобразуем данные из Supabase в формат Product
+     return (data || []).map((row: any) => ({
+       id: row.id,
+       sku: row.sku,
+       name: row.name,
+       description: row.description,
+       technicalDescription: row.technical_description,
+       photos: row.photos || { main: row.thumbnail_url, others: [] },
+       infographics: row.infographics || { main: "/abstract-geometric-shapes.png", others: [] },
+       colors: row.colors || [],
+       category: row.category,
+       sub: row.sub,
+       thickness: row.thickness || [],
+       sizes: row.sizes || [],
+       pcsPerBox: row.pcs_per_box || 0,
+       boxKg: row.box_kg || 0,
+       boxM3: row.box_m3 || 0,
+       minOrderBoxes: row.min_order_boxes || 1,
+       status: row.status,
+       tags: row.tags || [],
+       customFields: row.custom_fields || {},
+       thumbnailUrl: row.thumbnail_url,
+       gallery: row.gallery || [],
+       stockLevel: row.stock_level || 0,
+       version: row.version || 1,
+       technicalSpecifications: [],
+       colorVariants: [],
+       createdAt: row.created_at,
+       updatedAt: row.updated_at,
+     }))
   } catch (error) {
     console.error("Error in getProducts:", error)
     return []
@@ -416,33 +423,35 @@ export async function saveProduct(product: Partial<Product>): Promise<Product | 
 
     // Преобразуем обратно в формат Product
     const row = result.data
-    return {
-      id: row.id,
-      sku: row.sku,
-      name: row.name,
-      description: row.description,
-      technicalDescription: row.technical_description,
-      photos: row.photos || { main: row.thumbnail_url, others: [] },
-      infographics: row.infographics || { main: "/abstract-geometric-shapes.png", others: [] },
-      colors: row.colors || [],
-      category: row.category,
-      sub: row.sub,
-      thickness: row.thickness || [],
-      sizes: row.sizes || [],
-      pcsPerBox: row.pcs_per_box || 0,
-      boxKg: row.box_kg || 0,
-      boxM3: row.box_m3 || 0,
-      minOrderBoxes: row.min_order_boxes || 1,
-      status: row.status,
-      tags: row.tags || [],
-      customFields: row.custom_fields || {},
-      thumbnailUrl: row.thumbnail_url,
-      gallery: row.gallery || [],
-      stockLevel: row.stock_level || 0,
-      version: row.version || 1,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }
+         return {
+       id: row.id,
+       sku: row.sku,
+       name: row.name,
+       description: row.description,
+       technicalDescription: row.technical_description,
+       photos: row.photos || { main: row.thumbnail_url, others: [] },
+       infographics: row.infographics || { main: "/abstract-geometric-shapes.png", others: [] },
+       colors: row.colors || [],
+       category: row.category,
+       sub: row.sub,
+       thickness: row.thickness || [],
+       sizes: row.sizes || [],
+       pcsPerBox: row.pcs_per_box || 0,
+       boxKg: row.box_kg || 0,
+       boxM3: row.box_m3 || 0,
+       minOrderBoxes: row.min_order_boxes || 1,
+       status: row.status,
+       tags: row.tags || [],
+       customFields: row.custom_fields || {},
+       thumbnailUrl: row.thumbnail_url,
+       gallery: row.gallery || [],
+       stockLevel: row.stock_level || 0,
+       version: row.version || 1,
+       technicalSpecifications: [],
+       colorVariants: [],
+       createdAt: row.created_at,
+       updatedAt: row.updated_at,
+     }
   } catch (error) {
     console.error("Error in saveProduct:", error)
     return null
@@ -458,14 +467,14 @@ export async function getCategories(): Promise<Category[]> {
       return []
     }
 
-    return (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      subs: row.subs || [],
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
+         return (data || []).map((row: any) => ({
+       id: row.id,
+       name: row.name,
+       slug: row.slug,
+       subs: row.subs || [],
+       createdAt: row.created_at,
+       updatedAt: row.updated_at,
+     }))
   } catch (error) {
     console.error("Error in getCategories:", error)
     return []
@@ -477,7 +486,7 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
     const categoryData = {
       name: category.name,
       slug: category.slug,
-      subs: category.subs,
+      // Убираем subs - они управляются триггерами
       updated_at: new Date().toISOString(),
     }
 
@@ -539,7 +548,7 @@ export async function updateCategory(id: string, updates: Partial<Category>): Pr
     const categoryData = {
       name: updates.name,
       slug: updates.slug,
-      subs: updates.subs,
+      // Убираем subs - они управляются триггерами
       updated_at: new Date().toISOString(),
     }
 

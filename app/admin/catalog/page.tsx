@@ -20,6 +20,7 @@ async function fetchCategories() {
 }
 
 async function fetchProducts(params: { search: string; category: string | null; sub: string | null }) {
+  console.log("[v0] fetchProducts called with params:", params)
   const q = new URLSearchParams()
   q.set("limit", "500")
   q.set("sort", "updatedAt")
@@ -28,9 +29,22 @@ async function fetchProducts(params: { search: string; category: string | null; 
   if (params.search) q.set("search", params.search)
   if (params.category) q.set("category", params.category)
   if (params.sub) q.set("sub", params.sub)
-  const res = await fetch(`/api/products?${q.toString()}`)
-  if (!res.ok) throw new Error("Failed to load products")
-  return (await res.json()) as { items: Product[]; total: number }
+  
+  const url = `/api/products?${q.toString()}`
+  console.log("[v0] Fetching from URL:", url)
+  
+  const res = await fetch(url)
+  console.log("[v0] Response status:", res.status)
+  
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error("[v0] Response error:", errorText)
+    throw new Error("Failed to load products")
+  }
+  
+  const data = await res.json()
+  console.log("[v0] Response data:", data)
+  return data as { items: Product[]; total: number }
 }
 
 export default function CatalogAdminPage() {
@@ -38,6 +52,7 @@ export default function CatalogAdminPage() {
 
   const [cats, setCats] = React.useState<Category[]>([])
   const [items, setItems] = React.useState<Product[]>([])
+  const [total, setTotal] = React.useState(0)
   const [prodLoading, setProdLoading] = React.useState(false)
 
   const [productSearch, setProductSearch] = React.useState("")
@@ -57,14 +72,31 @@ export default function CatalogAdminPage() {
   }, [])
 
   React.useEffect(() => {
+    console.log("[v0] Starting to fetch products...")
     setProdLoading(true)
     fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
       .then((data) => {
-        setItems(data.items)
-        console.log("[v0] Loaded products:", data.items.length)
+        console.log("[v0] FetchProducts returned:", {
+          itemsCount: data.items?.length || 0,
+          total: data.total,
+          firstItem: data.items?.[0] ? {
+            id: data.items[0].id,
+            name: data.items[0].name,
+            status: data.items[0].status
+          } : null
+        })
+        setItems(data.items || [])
+        setTotal(data.total || 0)
+        console.log("[v0] Loaded products:", data.items?.length || 0)
       })
-      .catch((error) => console.error("Failed to load products:", error))
-      .finally(() => setProdLoading(false))
+      .catch((error) => {
+        console.error("Failed to load products:", error)
+        setItems([])
+      })
+      .finally(() => {
+        setProdLoading(false)
+        console.log("[v0] Products loading finished")
+      })
   }, [productSearch, catFilter, subFilter])
 
   const deleteProduct = async (id: string) => {
@@ -73,7 +105,8 @@ export default function CatalogAdminPage() {
       if (!res.ok) throw new Error("Delete failed")
       // Reload products
       const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-      setItems(data.items)
+      setItems(data.items || [])
+      setTotal(data.total || 0)
       toast({ title: "Product deleted" })
     } catch (error) {
       console.error("Delete failed:", error)
@@ -83,18 +116,30 @@ export default function CatalogAdminPage() {
   const toggleStatus = async (p: Product) => {
     try {
       const next = p.status === "inactive" || p.status === "discontinued" ? "active" : "inactive"
+      console.log("[v0] Toggling status for product:", p.id, "from", p.status, "to", next)
+      
       const res = await fetch(`/api/products/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),
       })
-      if (!res.ok) throw new Error("Failed to update status")
+      
+      console.log("[v0] Status update response:", res.status, res.statusText)
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("[v0] Status update failed:", errorText)
+        throw new Error(`Failed to update status: ${errorText}`)
+      }
+      
       // Reload products
       const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-      setItems(data.items)
+      setItems(data.items || [])
+      setTotal(data.total || 0)
       toast({ title: "Status updated" })
     } catch (error) {
       console.error("Status update failed:", error)
+      toast({ title: "Failed to update status", variant: "destructive" })
     }
   }
 
@@ -108,7 +153,8 @@ export default function CatalogAdminPage() {
       if (!res.ok) throw new Error("Failed to mark discontinued")
       // Reload products
       const data = await fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-      setItems(data.items)
+      setItems(data.items || [])
+      setTotal(data.total || 0)
       toast({ title: "Marked discontinued" })
     } catch (error) {
       console.error("Mark discontinued failed:", error)
@@ -133,7 +179,10 @@ export default function CatalogAdminPage() {
     if (prevOpenRef.current && !openProduct) {
       // Reload products when form closes
       fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-        .then((data) => setItems(data.items))
+        .then((data) => {
+          setItems(data.items || [])
+          setTotal(data.total || 0)
+        })
         .catch((error) => console.error("Failed to reload products:", error))
       setDuplicateFrom(null)
     }
@@ -144,7 +193,10 @@ export default function CatalogAdminPage() {
     const onChanged = () => {
       // Reload products when products change
       fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-        .then((data) => setItems(data.items))
+        .then((data) => {
+          setItems(data.items || [])
+          setTotal(data.total || 0)
+        })
         .catch((error) => console.error("Failed to reload products:", error))
     }
     window.addEventListener("products:changed", onChanged as EventListener)
@@ -234,6 +286,7 @@ export default function CatalogAdminPage() {
             </div>
 
             <div className="flex gap-2 justify-end">
+
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -259,14 +312,14 @@ export default function CatalogAdminPage() {
                 }}
               >
                 <Download className="mr-1 h-4 w-4" />
-                Export CSV
+                Export Excel
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setImportOpen(true)}
               >
                 <Upload className="mr-1 h-4 w-4" />
-                Import CSV
+                Import Excel
               </Button>
               <Button
                 onClick={() => {
@@ -286,7 +339,7 @@ export default function CatalogAdminPage() {
 
           <ProductsTableNew
             data={items}
-            total={items.length}
+            total={total}
             loading={prodLoading}
             onEdit={(p) => {
               setDuplicateFrom(null)
@@ -317,7 +370,10 @@ export default function CatalogAdminPage() {
             onImportComplete={() => {
               // Reload products after import
               fetchProducts({ search: productSearch, category: catFilter, sub: subFilter })
-                .then((data) => setItems(data.items))
+                .then((data) => {
+                  setItems(data.items || [])
+                  setTotal(data.total || 0)
+                })
                 .catch((error) => console.error("Failed to reload products:", error))
             }}
           />

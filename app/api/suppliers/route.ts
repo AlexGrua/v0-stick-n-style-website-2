@@ -29,6 +29,7 @@ export async function GET(request: Request) {
 
     const mappedSuppliers = (suppliers || []).map((supplier) => ({
       id: supplier.id,
+      code: `S${supplier.id.toString().padStart(3, '0')}`, // Генерируем код, так как колонки code нет
       shortName: supplier.name, // Using name as shortName for frontend compatibility
       companyName: supplier.name,
       contactPerson: supplier.contact_person,
