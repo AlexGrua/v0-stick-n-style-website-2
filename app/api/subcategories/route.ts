@@ -4,11 +4,38 @@ import { requireRole } from "@/lib/api/guard"
 
 export async function GET(req: Request) {
   try {
-    // Возвращаем пустой массив, так как subcategories хранятся в JSONB поле categories.subs
-    return NextResponse.json({ items: [], total: 0 })
+    const supabase = createClient()
+    
+    // Получаем все категории с их subcategories из JSONB поля subs
+    const { data: categories, error } = await supabase
+      .from("categories")
+      .select("id, name, slug, subs")
+    
+    if (error) {
+      console.error("Error fetching categories:", error)
+      return NextResponse.json({ items: [], total: 0 })
+    }
+    
+    // Извлекаем все subcategories из JSONB поля subs
+    const allSubcategories = []
+    categories?.forEach(category => {
+      if (category.subs && Array.isArray(category.subs)) {
+        category.subs.forEach((sub: any) => {
+          allSubcategories.push({
+            id: sub.id || `${category.id}-${sub.name}`,
+            name: sub.name,
+            slug: sub.slug || sub.name,
+            category_id: category.id,
+            category_name: category.name
+          })
+        })
+      }
+    })
+    
+    return NextResponse.json({ items: allSubcategories, total: allSubcategories.length })
   } catch (error) {
     console.error("Error in subcategories GET:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ items: [], total: 0 })
   }
 }
 

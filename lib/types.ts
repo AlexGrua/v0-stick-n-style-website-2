@@ -35,7 +35,7 @@ export type InteriorApplication = {
 }
 
 export type Product = {
-  id: string
+  id: number
   sku: string
   name: string
   description?: string
@@ -89,10 +89,10 @@ export type Product = {
   installationNotes?: string
 }
 
-export type Subcategory = { id: string; name: string }
+export type Subcategory = { id: number; name: string }
 
 export type Category = {
-  id: string
+  id: number
   name: string
   slug: string
   subs: Subcategory[]

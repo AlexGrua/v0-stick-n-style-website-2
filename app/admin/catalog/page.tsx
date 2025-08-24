@@ -346,7 +346,7 @@ export default function CatalogAdminPage() {
               setEditProduct(p)
               setOpenProduct(true)
             }}
-            onDelete={(p) => deleteProduct(p.id)}
+            onDelete={(p) => deleteProduct(String(p.id))}
             onToggleStatus={(p) => toggleStatus(p)}
             onMarkDiscontinued={(p) => markDiscontinued(p)}
             onPreview={handlePreview}

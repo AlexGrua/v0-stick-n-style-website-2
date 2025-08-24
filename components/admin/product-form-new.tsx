@@ -64,25 +64,25 @@ interface Product {
   id?: number
   sku: string
   name: string
-  slug: string
-  description: string
-  category_id: string
-  subcategory_id?: string
-  image_url: string
-  specifications: {
-    supplierId: string
-    supplierCode: string
-    colorVariants: ColorVariant[]
-    technicalSpecifications: TechnicalSpec[]
-    otherPhotos: string[]
-    productSpecifications: {
+  slug?: string
+  description?: string
+  category_id?: string | number
+  subcategory_id?: string | number
+  image_url?: string
+  specifications?: {
+    supplierId?: string | number
+    supplierCode?: string
+    colorVariants?: ColorVariant[]
+    technicalSpecifications?: TechnicalSpec[]
+    otherPhotos?: string[]
+    productSpecifications?: {
       material: ProductSpec[]
       usage: ProductSpec[]
       application: ProductSpec[]
       physicalProperties: ProductSpec[]
       adhesion: ProductSpec[]
     }
-    interiorApplications: InteriorApplication[]
+    interiorApplications?: InteriorApplication[]
   }
 }
 
@@ -122,10 +122,10 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
       sku: product?.sku || prefillFrom?.sku || "",
       name: product?.name || prefillFrom?.name || "",
       description: product?.description || prefillFrom?.description || "",
-      category_id: product?.category_id?.toString() || prefillFrom?.category_id?.toString() || "",
-      subcategory_id: product?.subcategory_id || prefillFrom?.subcategory_id || "",
+      category_id: String(product?.category_id || prefillFrom?.category_id || ""),
+      subcategory_id: String(product?.subcategory_id || prefillFrom?.subcategory_id || ""),
       supplierId:
-        product?.specifications?.supplierId?.toString() || prefillFrom?.specifications?.supplierId?.toString() || "",
+        String(product?.specifications?.supplierId || prefillFrom?.specifications?.supplierId || ""),
       image_url: product?.image_url || prefillFrom?.image_url || "",
     },
   })
@@ -187,9 +187,9 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
           setValue("sku", productData.sku || "")
           setValue("name", productData.name || "")
           setValue("description", productData.description || "")
-          setValue("category_id", productData.category_id?.toString() || "")
-                     setValue("subcategory_id", productData.subcategory_id?.toString() || "")
-          setValue("supplierId", productData.specifications?.supplierId?.toString() || "")
+          setValue("category_id", String(productData.category_id || ""))
+          setValue("subcategory_id", String(productData.subcategory_id || ""))
+          setValue("supplierId", String(productData.specifications?.supplierId || ""))
           setValue("image_url", productData.image_url || "")
 
           // Load specifications data
@@ -354,9 +354,9 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
     }
   }
 
-  const onSubmit = (data: ProductFormData) => {
+  const onSubmit = (data: any) => {
     console.log("[v0] Form submitted with data:", data)
-    handleSave(data)
+    handleSave(data as ProductFormData)
   }
 
   // Helper functions

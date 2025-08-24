@@ -45,14 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .eq("key", "language_switcher_visible")
           .single()
 
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Navigation query timeout')), 5000)
-        )
-
-        const [navResult, switcherResult] = await Promise.race([
-          Promise.all([navPromise, switcherPromise]),
-          timeoutPromise
-        ]) as any
+        const [navResult, switcherResult] = await Promise.all([navPromise, switcherPromise])
 
         const { data: navData, error: navError } = navResult
         const { data: switcherData, error: switcherError } = switcherResult
@@ -89,13 +82,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     try {
-      // Add timeout for Supabase query
-      const queryPromise = supabase.from("site_settings").select("data").eq("key", key).single()
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 5000)
-      )
-
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
+      const { data, error } = await supabase.from("site_settings").select("data").eq("key", key).single()
 
       if (error && error.code !== "PGRST116") {
         throw error
@@ -130,16 +117,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     try {
-      // Add timeout for Supabase upsert
-      const upsertPromise = supabase.from("site_settings").upsert(
+      const { error } = await supabase.from("site_settings").upsert(
         { key, data: requestData, updated_at: new Date().toISOString() },
         { onConflict: "key" },
       )
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upsert timeout')), 5000)
-      )
-
-      const { error } = await Promise.race([upsertPromise, timeoutPromise]) as any
 
       if (error) throw error
 
