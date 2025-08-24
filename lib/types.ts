@@ -39,13 +39,18 @@ export type Product = {
   sku: string
   name: string
   description?: string
-  category: CategoryKey
-  sub: string
+  category?: string // Changed from CategoryKey to optional string
+  sub?: string // Made optional
   subcategory?: string // New field from API
   supplier?: string // New field from API
   categoryId?: number // New field from API
   subcategoryId?: number // New field from API
   supplierId?: string // New field from API
+  // Database fields
+  slug?: string
+  category_id?: number
+  image_url?: string
+  specifications?: any
   // Legacy fields for backward compatibility (will be deprecated)
   thickness: string[] 
   sizes: string[]
