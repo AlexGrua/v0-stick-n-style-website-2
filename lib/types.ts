@@ -96,7 +96,7 @@ export type Category = {
   name: string
   slug: string
   status?: "active" | "inactive"
-  subs: Subcategory[]
+  subcategories: Subcategory[]
   createdAt: string
   updatedAt: string
 }

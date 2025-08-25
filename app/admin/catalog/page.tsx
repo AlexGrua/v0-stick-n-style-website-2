@@ -62,7 +62,7 @@ export default function CatalogAdminPage() {
   const subsForCat = React.useMemo(() => {
     if (!catFilter) return []
     const found = cats.find((c) => c.slug === catFilter)
-    return found?.subs ?? []
+    return found?.subcategories ?? []
   }, [catFilter, cats])
 
   React.useEffect(() => {
@@ -269,7 +269,7 @@ export default function CatalogAdminPage() {
                     <SelectValue placeholder="Subcategory" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All subs</SelectItem>
+                    <SelectItem value="all">All subcategories</SelectItem>
                     {subsForCat.map((s) => (
                       <SelectItem key={s.id || s.name} value={s.name}>
                         {s.name}

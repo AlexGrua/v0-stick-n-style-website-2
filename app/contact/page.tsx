@@ -1,69 +1,73 @@
-"use client"
-
 import { SiteFooter } from "@/components/site-footer"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Mail, Phone, MessageCircleMore, SendHorizonal } from "lucide-react"
-import { useT } from "@/lib/i18n"
-import { useContentTranslations } from "@/lib/content-i18n"
+import { BlockRenderer } from "@/components/blocks/renderer"
+import { getBlocks } from "@/lib/pages"
 
-export default function ContactPage() {
-  const t = useT()
-  const { dict } = useContentTranslations("page", "contact")
+// Main Contact Page Component
+export default async function ContactPage({ 
+  searchParams 
+}: { 
+  searchParams: Promise<{ newblocks?: string, draft?: string, layout?: string }> 
+}) {
+  const params = await searchParams
+  
+  // Check for feature flag or query parameter
+  // Temporarily enable blocks by default for testing
+  const useBlocks = true || process.env.NEXT_PUBLIC_FEATURE_BLOCK_CONTACTS === '1' || 
+                   params?.newblocks === '1'
+
+  // Render with blocks if feature flag is enabled
+  if (useBlocks) {
+    // Get blocks - use draft mode only for preview, otherwise published blocks
+    const draftMode = params?.draft === '1'
+    const blocks = await getBlocks('contact', { draft: draftMode })
+    
+    // Auto-detect two-column layout based on slots OR force with flag/parameter
+    const hasSlots = blocks.some((b: any) => b.slot === 'left' || b.slot === 'right')
+    const forceTwo = process.env.NEXT_PUBLIC_FEATURE_CONTACT_LAYOUT_V2 === '1' || 
+                    params?.layout === '2col'
+    const twoCol = hasSlots || forceTwo
+    
+    // Two-column layout
+    if (twoCol) {
+      const top = blocks.filter((b: any) => b.slot === 'top' || b.type === 'contactsHero')
+      const left = blocks.filter((b: any) => b.slot === 'left')
+      const right = blocks.filter((b: any) => b.slot === 'right')
+
+      return (
+        <div className="min-h-screen bg-white">
+          <main className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
+            <BlockRenderer blocks={top} />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-7">
+                <BlockRenderer blocks={left} />
+              </div>
+              <aside className="lg:col-span-5 lg:sticky lg:top-24">
+                <BlockRenderer blocks={right} />
+              </aside>
+            </div>
+          </main>
+          <SiteFooter />
+        </div>
+      )
+    }
+    
+    // Single column layout
+    return (
+      <div className="min-h-screen bg-white">
+        <main className="container mx-auto px-4 py-8">
+          <BlockRenderer blocks={blocks} wrapperClass="block-renderer" />
+        </main>
+        <SiteFooter />
+      </div>
+    )
+  }
+
+  // Legacy render - fallback to blocks if legacy not available
+  const blocks = await getBlocks('contact', { draft: false })
   return (
     <div className="min-h-screen bg-white">
-      {/* Header is provided by root layout. Do not render here. */}
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-semibold">{dict.name || t("contact.title", "Contact Us")}</h1>
-        <p className="mt-2 max-w-2xl text-muted-foreground">{dict.description || t("contact.subtitle", "Tell us about your project or request a quote. We typically respond within one business day.")}</p>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardContent className="p-4">
-              <form
-                className="grid gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  alert(t("contact.thanks", "Thanks! We will contact you shortly."))
-                }}
-              >
-                <Input placeholder={t("contact.name", "Your name")} required aria-label={t("contact.name", "Your name")} />
-                <Input type="email" placeholder={t("contact.email", "Email")} required aria-label={t("contact.email", "Email")} />
-                <Input placeholder={t("contact.phone", "Phone (optional)")} aria-label={t("contact.phone", "Phone (optional)")} />
-                <Textarea rows={5} placeholder={t("contact.message", "How can we help?")} required aria-label={t("contact.message", "Message")} />
-                <Button type="submit" className="bg-lime-500 hover:bg-lime-600">
-                  {t("contact.send", "Send message")}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4">
-            <Card>
-              <CardContent className="grid gap-2 p-4">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-emerald-600" /> <span>hello@sticknstyle.com</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-emerald-600" /> <span>+86 123 456 789</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MessageCircleMore className="h-4 w-4 text-emerald-600" /> <span>{t("contact.whatsapp", "WhatsApp")}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <SendHorizonal className="h-4 w-4 text-emerald-600" /> <span>{t("contact.telegram", "Telegram")}</span>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="grid place-items-center p-6 text-sm text-muted-foreground">
-                {t("contact.map_placeholder", "Map placeholder")}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <BlockRenderer blocks={blocks} wrapperClass="block-renderer" />
       </main>
       <SiteFooter />
     </div>

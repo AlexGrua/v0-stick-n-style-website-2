@@ -4,7 +4,10 @@ import { requireRole } from "@/lib/api/guard"
 
 export async function GET() {
   try {
+    console.log("[v0] GET /api/home-page - starting...")
     const homePage = await getHomePageData()
+    console.log("[v0] GET /api/home-page - data loaded, hero backgroundImage:", homePage?.hero?.backgroundImage)
+    console.log("[v0] GET /api/home-page - data loaded, hero images:", homePage?.hero?.images)
     return NextResponse.json(homePage)
   } catch (error) {
     console.error("Error in GET /api/home-page:", error)
@@ -22,11 +25,15 @@ export async function PUT(req: Request) {
     const updates = await req.json()
     const now = new Date().toISOString()
 
+    console.log("[v0] PUT /api/home-page - received updates:", JSON.stringify(updates, null, 2))
+
     // Получаем текущие данные
     const currentData = await getHomePageData()
     if (!currentData) {
       return NextResponse.json({ error: "Failed to load current data" }, { status: 500 })
     }
+
+    console.log("[v0] PUT /api/home-page - current data:", JSON.stringify(currentData, null, 2))
 
     // Обновляем данные
     const updatedData = {
@@ -35,12 +42,15 @@ export async function PUT(req: Request) {
       updatedAt: now,
     }
 
+    console.log("[v0] PUT /api/home-page - updated data:", JSON.stringify(updatedData, null, 2))
+
     // Сохраняем в Supabase
     const success = await saveHomePageData(updatedData)
     if (!success) {
       return NextResponse.json({ error: "Failed to save data" }, { status: 500 })
     }
 
+    console.log("[v0] PUT /api/home-page - data saved successfully")
     return NextResponse.json(updatedData)
   } catch (error) {
     console.error("Error in PUT /api/home-page:", error)

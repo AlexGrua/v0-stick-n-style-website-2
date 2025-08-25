@@ -137,6 +137,7 @@ export function ProductsTableNew({
               </TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Subcategory</TableHead>
+              <TableHead>Colors</TableHead>
               <TableHead>Supplier</TableHead>
               <TableHead>Sizes</TableHead>
               <TableHead>Thickness</TableHead>
@@ -174,6 +175,20 @@ export function ProductsTableNew({
                   <TableCell>{getCategoryName(product.category || "")}</TableCell>
                   <TableCell>{getSubcategoryName(product.subcategory || "")}</TableCell>
                   <TableCell>{getSupplierName(product.supplier || "")}</TableCell>
+                  <TableCell>
+                    {(product.colorVariants || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[220px]">
+                        {(product.colorVariants || []).slice(0, 6).map((c, idx) => (
+                          <Badge key={idx} variant="outline">{c.name}</Badge>
+                        ))}
+                        {(product.colorVariants || []).length > 6 && (
+                          <Badge variant="secondary">+{(product.colorVariants || []).length - 6}</Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{product.technicalSpecifications?.length || 0}</Badge>
                   </TableCell>

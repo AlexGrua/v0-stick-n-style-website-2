@@ -22,8 +22,7 @@ export async function GET(request: NextRequest) {
         categories (
           id,
           name,
-          slug,
-          subs
+          slug
         )
       `)
       .order('created_at', { ascending: false })
@@ -72,7 +71,7 @@ export async function GET(request: NextRequest) {
         name: product.name,
         description: product.description,
         category: product.categories?.name || '',
-        sub: specs.sub || '',
+        subcategory: specs.subcategoryId || '',
         technicalSpecifications: techSpecs,
         colorVariants: colorVariants,
         pcsPerBox: avgPcsPerBox || specs.pcsPerBox || 0,

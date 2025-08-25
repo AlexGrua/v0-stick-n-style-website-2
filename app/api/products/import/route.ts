@@ -3,6 +3,27 @@ import { requireRole } from '@/lib/api/guard'
 import { createClient } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
 
+function toSlug(s: string) {
+  return (s || '')
+    .toString()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+async function generateUniqueSlug(baseSlug: string, supabase: any): Promise<string> {
+  let slug = baseSlug
+  let counter = 1
+  while (true) {
+    const { data: existingProduct } = await supabase.from('products').select('id').eq('slug', slug).single()
+    if (!existingProduct) return slug
+    slug = `${baseSlug}-${counter}`
+    counter++
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check permissions
@@ -252,16 +273,22 @@ export async function POST(request: NextRequest) {
         // Find supplier info for this product
         const supplier = referenceData.suppliers.find((sup: any) => sup.id === productData.supplierId)
         
+        // Prepare DB payload
+        const baseSlug = toSlug(productData.name) || toSlug(productData.sku) || `product-${productData.sku || Date.now()}`
+        const slug = await generateUniqueSlug(baseSlug, supabase)
+
         const dbProduct = {
           name: productData.name,
           description: productData.description,
+          category_id: productData.category_id,
           image_url: productData.image_url,
           price: 0, // Default price
           in_stock: true, // Default in stock
           sku: productData.sku, // SKU в отдельной колонке
+          slug,
           specifications: {
             supplierId: productData.supplierId,
-            subs: [productData.subcategory_id], // Store subcategory ID in subs array
+            subcategoryId: productData.subcategory_id, // Store subcategory ID
             status: productData.status || 'inactive',
             colorVariants: productData.colorVariants,
             technicalSpecifications: productData.technicalSpecifications,

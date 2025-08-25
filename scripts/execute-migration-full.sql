@@ -1,95 +1,147 @@
--- =====================================================
--- МИГРАЦИЯ 001: ДОБАВЛЕНИЕ НЕДОСТАЮЩИХ КОЛОНОК
--- =====================================================
+-- pages / blocks / publications / audit for block-based public pages
+-- NOTE: run in dev; ensure RLS and cache reload after apply
 
-BEGIN;
+begin;
 
--- 1. Создаем таблицу subcategories если её нет
-CREATE TABLE IF NOT EXISTS subcategories (
-  id SERIAL PRIMARY KEY,
-  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL,
-  description TEXT,
-  image_url TEXT,
-  sort_order INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(category_id, slug)
+-- 1) pages table
+create table if not exists public.pages (
+  id bigserial primary key,
+  key text not null unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- 2. Добавляем недостающие колонки в products
-ALTER TABLE IF EXISTS products 
-  ADD COLUMN IF NOT EXISTS sku TEXT,
-  ADD COLUMN IF NOT EXISTS subcategory_id INTEGER,
-  ADD COLUMN IF NOT EXISTS specifications JSONB NOT NULL DEFAULT '{}'::jsonb;
+-- 2) page_blocks table
+create table if not exists public.page_blocks (
+  id bigserial primary key,
+  page_id bigint not null references public.pages(id) on delete cascade,
+  type text not null,
+  props jsonb not null default '{}'::jsonb,
+  slot text not null default 'main',
+  position integer not null default 0,
+  is_active boolean not null default true,
+  locale text null,
+  valid_from timestamptz null,
+  valid_to timestamptz null,
+  version integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint page_blocks_props_object check (jsonb_typeof(props) = 'object'),
+  constraint page_blocks_position_nonneg check (position >= 0),
+  constraint page_blocks_unique_position unique (page_id, position)
+);
 
--- 3. Добавляем FK для subcategory_id если его нет
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_schema = 'public' 
-      AND table_name = 'products' 
-      AND constraint_name = 'products_subcategory_fk'
-  ) THEN
-    ALTER TABLE products
-      ADD CONSTRAINT products_subcategory_fk 
-      FOREIGN KEY (subcategory_id) 
-      REFERENCES subcategories(id) ON DELETE SET NULL;
-  END IF;
-END $$;
+-- 3) publications table
+create table if not exists public.page_publications (
+  id bigserial primary key,
+  page_id bigint not null references public.pages(id) on delete cascade,
+  version integer not null,
+  snapshot jsonb not null default '[]'::jsonb,
+  published_at timestamptz not null default now(),
+  published_by text null
+);
 
--- 4. Создаем индексы для производительности
-CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
-CREATE INDEX IF NOT EXISTS idx_products_subcategory_id ON products(subcategory_id);
-CREATE INDEX IF NOT EXISTS idx_subcategories_category_id ON subcategories(category_id);
-CREATE INDEX IF NOT EXISTS idx_products_specifications_gin ON products USING GIN (specifications);
+-- 4) audit logs
+create table if not exists public.audit_logs (
+  id bigserial primary key,
+  entity text not null,
+  entity_id bigint null,
+  action text not null,
+  by text null,
+  diff jsonb null,
+  created_at timestamptz not null default now()
+);
 
--- 5. Временно отключаем RLS для админки
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_tables 
-    WHERE tablename = 'products' 
-      AND rowsecurity = true
-  ) THEN
-    ALTER TABLE products DISABLE ROW LEVEL SECURITY;
-    ALTER TABLE categories DISABLE ROW LEVEL SECURITY;
-    ALTER TABLE subcategories DISABLE ROW LEVEL SECURITY;
-    ALTER TABLE suppliers DISABLE ROW LEVEL SECURITY;
-  END IF;
-END $$;
+-- Indices
+create index if not exists idx_page_blocks_page_slot_pos on public.page_blocks(page_id, slot, position);
+create index if not exists idx_page_blocks_page_locale_active on public.page_blocks(page_id, locale, is_active);
 
--- 6. Добавляем демо-данные
-INSERT INTO subcategories (category_id, name, slug, description) 
-SELECT 
-  c.id,
-  'Plain Color',
-  'plain-color',
-  'Однотонные панели'
-FROM categories c 
-WHERE c.name = 'Wall Panel' 
-  AND NOT EXISTS (
-    SELECT 1 FROM subcategories sc 
-    WHERE sc.category_id = c.id AND sc.name = 'Plain Color'
-  );
+-- Trigger to auto-update updated_at
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
 
-INSERT INTO subcategories (category_id, name, slug, description) 
-SELECT 
-  c.id,
-  'Brick Structure',
-  'brick-structure',
-  'Панели с текстурой кирпича'
-FROM categories c 
-WHERE c.name = 'Wall Panel' 
-  AND NOT EXISTS (
-    SELECT 1 FROM subcategories sc 
-    WHERE sc.category_id = c.id AND sc.name = 'Brick Structure'
-  );
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_page_blocks_set_updated_at') then
+    create trigger trg_page_blocks_set_updated_at
+      before update on public.page_blocks
+      for each row execute function public.set_updated_at();
+  end if;
+end $$;
 
-COMMIT;
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_pages_set_updated_at') then
+    create trigger trg_pages_set_updated_at
+      before update on public.pages
+      for each row execute function public.set_updated_at();
+  end if;
+end $$;
 
--- 7. Обновляем кеш PostgREST (ОБЯЗАТЕЛЬНО!)
-NOTIFY pgrst, 'reload schema';
+-- RLS
+alter table public.pages enable row level security;
+alter table public.page_blocks enable row level security;
+alter table public.page_publications enable row level security;
+alter table public.audit_logs enable row level security;
+
+-- Policies: read to anon/auth, write only admin/service_role (assumes JWT with role claim or service key)
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'pages' and policyname = 'pages_read_all') then
+    create policy pages_read_all on public.pages for select using (true);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'page_blocks' and policyname = 'page_blocks_read_all') then
+    create policy page_blocks_read_all on public.page_blocks for select using (true);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'page_publications' and policyname = 'page_publications_read_all') then
+    create policy page_publications_read_all on public.page_publications for select using (true);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'audit_logs' and policyname = 'audit_logs_read_all') then
+    create policy audit_logs_read_all on public.audit_logs for select using (true);
+  end if;
+end $$;
+
+-- write policies: keep minimal, rely on service_role for CI/admin
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'pages' and policyname = 'pages_write_admin') then
+    create policy pages_write_admin on public.pages for all using (false) with check (false);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'page_blocks' and policyname = 'page_blocks_write_admin') then
+    create policy page_blocks_write_admin on public.page_blocks for all using (false) with check (false);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'page_publications' and policyname = 'page_publications_write_admin') then
+    create policy page_publications_write_admin on public.page_publications for all using (false) with check (false);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where tablename = 'audit_logs' and policyname = 'audit_logs_write_admin') then
+    create policy audit_logs_write_admin on public.audit_logs for all using (false) with check (false);
+  end if;
+end $$;
+
+-- Seed page 'home'
+insert into public.pages(key)
+  values ('home')
+on conflict (key) do nothing;
+
+commit;
+
+-- After apply
+-- select pg_notify('pgrst', 'reload schema');

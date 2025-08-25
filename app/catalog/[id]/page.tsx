@@ -58,7 +58,7 @@ function CatalogFilters() {
   const activeSubcategories = React.useMemo(() => {
     if (activeCategory === "all") return []
     const category = categories.find((c) => c.slug === activeCategory)
-    return category?.subs || []
+    return category?.subcategories || []
   }, [categories, activeCategory])
 
   function handleCategoryChange(categorySlug: string) {

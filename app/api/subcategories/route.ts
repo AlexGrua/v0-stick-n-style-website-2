@@ -6,33 +6,48 @@ export async function GET(req: Request) {
   try {
     const supabase = createClient()
     
-    // Получаем все категории с их subcategories из JSONB поля subs
-    const { data: categories, error } = await supabase
-      .from("categories")
-      .select("id, name, slug, subs")
+    // Получаем все подкатегории из отдельной таблицы subcategories
+    const { data: subcategories, error } = await supabase
+      .from("subcategories")
+      .select(`
+        id,
+        name,
+        slug,
+        description,
+        image_url,
+        sort_order,
+        is_active,
+        created_at,
+        updated_at,
+        category_id,
+        categories!inner(id, name, slug)
+      `)
+      .order('sort_order', { ascending: true })
     
     if (error) {
-      console.error("Error fetching categories:", error)
+      console.error("Error fetching subcategories:", error)
       return NextResponse.json({ items: [], total: 0 })
     }
     
-    // Извлекаем все subcategories из JSONB поля subs
-    const allSubcategories = []
-    categories?.forEach(category => {
-      if (category.subs && Array.isArray(category.subs)) {
-        category.subs.forEach((sub: any) => {
-          allSubcategories.push({
-            id: sub.id || `${category.id}-${sub.name}`,
-            name: sub.name,
-            slug: sub.slug || sub.name,
-            category_id: category.id,
-            category_name: category.name
-          })
-        })
-      }
-    })
+    // Форматируем данные для фронтенда
+    const formattedSubcategories = subcategories?.map(sub => ({
+      id: sub.id,
+      name: sub.name,
+      slug: sub.slug,
+      description: sub.description,
+      image_url: sub.image_url,
+      sort_order: sub.sort_order,
+      is_active: sub.is_active,
+      created_at: sub.created_at,
+      updated_at: sub.updated_at,
+      category_id: sub.category_id,
+      category_name: sub.categories?.name
+    })) || []
     
-    return NextResponse.json({ items: allSubcategories, total: allSubcategories.length })
+    return NextResponse.json({ 
+      items: formattedSubcategories, 
+      total: formattedSubcategories.length 
+    })
   } catch (error) {
     console.error("Error in subcategories GET:", error)
     return NextResponse.json({ items: [], total: 0 })

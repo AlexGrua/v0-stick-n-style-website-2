@@ -174,6 +174,33 @@ export async function GET(req: Request) {
       }
     }
 
+    // Resolve subcategory names/slugs by subcategoryId from specifications
+    const subcategoryIds = [
+      ...new Set(
+        products
+          .map((p: any) => (p.specifications || {}).subcategoryId)
+          .filter(Boolean),
+      ),
+    ]
+    const subcategoryMap = new Map()
+
+    if (subcategoryIds.length > 0) {
+      try {
+        const { data: subcategories } = await supabase
+          .from("subcategories")
+          .select("id, name, slug")
+          .in("id", subcategoryIds as any)
+
+        if (subcategories) {
+          subcategories.forEach((sc: any) => {
+            subcategoryMap.set(sc.id, { name: sc.name, slug: sc.slug })
+          })
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching subcategories:", error)
+      }
+    }
+
     const mappedProducts = products.map((product: any) => {
       const specs = product.specifications || {}
 
@@ -235,18 +262,23 @@ export async function GET(req: Request) {
       if (specs.subcategoryName) {
         subcategoryName = specs.subcategoryName
         subcategorySlug = specs.subcategorySlug || ""
-      } else if (specs.subs && specs.subs.length > 0) {
-        // Try to get from subs array in specifications
-        const firstSub = specs.subs[0]
-        subcategoryName = firstSub.name || ""
-        subcategorySlug = firstSub.slug || ""
+      } else if (specs.subcategoryId) {
+        // Resolve by ID using pre-fetched subcategories
+        if (subcategoryMap.has(specs.subcategoryId)) {
+          const scInfo = subcategoryMap.get(specs.subcategoryId)
+          subcategoryName = scInfo.name
+          subcategorySlug = scInfo.slug
+        } else {
+          subcategoryName = `Subcategory ${specs.subcategoryId}`
+          subcategorySlug = `subcategory-${specs.subcategoryId}`
+        }
       }
 
       return {
         ...product,
         // IDs for forms and relations
         categoryId: product.category_id,
-        subcategoryId: null, // Временно отключаем
+        subcategoryId: specs.subcategoryId || null,
         supplierId: specs.supplierId || null,
         // Names for display
         category: categoryName,
@@ -263,6 +295,7 @@ export async function GET(req: Request) {
         // Structured data for forms and detailed views
         technicalSpecifications: techSpecs,
         colorVariants: colorVariants,
+        colors: (colorVariants || []).map((c: any) => c.name),
         // Legacy fields for backward compatibility
         sizes: allSizes,
         thickness: allThickness,

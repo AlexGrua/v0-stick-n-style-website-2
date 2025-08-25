@@ -11,6 +11,12 @@ interface HeroBlockProps {
   data?: HeroBlockData
 }
 
+interface HeroImage {
+  id: string
+  url: string
+  alt: string
+}
+
 export function HeroBlock({ data }: HeroBlockProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
@@ -21,9 +27,9 @@ export function HeroBlock({ data }: HeroBlockProps) {
       "Transform your space with our innovative stick-on wall panels. Easy installation, premium quality, wholesale pricing for professionals.",
     backgroundImage: "/modern-interior-3d-panels.png",
     images: [
-      { id: "1", url: "/modern-interior-3d-panels.png", alt: "Modern interior with premium wall panels" },
-      { id: "2", url: "/wood-flooring-textures.png", alt: "Wood flooring textures" },
-      { id: "3", url: "/fabric-texture-wall-panels.png", alt: "Fabric texture wall panels" },
+      "/modern-interior-3d-panels.png",
+      "/wood-flooring-textures.png", 
+      "/fabric-texture-wall-panels.png",
     ],
     buttons: [
       {
@@ -46,10 +52,36 @@ export function HeroBlock({ data }: HeroBlockProps) {
 
   const blockData = data || defaultData
 
-  const imagesToShow =
-    blockData.images && blockData.images.length > 0
-      ? blockData.images
-      : [{ id: "legacy", url: blockData.backgroundImage || "/modern-interior-3d-panels.png", alt: "Hero image" }]
+  // Добавляем отладочную информацию
+  console.log("[v0] HeroBlock received data:", data)
+  console.log("[v0] HeroBlock backgroundImage:", blockData.backgroundImage)
+  console.log("[v0] HeroBlock images array:", blockData.images)
+
+  const imagesToShow: HeroImage[] = (() => {
+    // Если есть дополнительные изображения, добавляем основное изображение в начало
+    if (blockData.images && blockData.images.length > 0) {
+      const mainImage = {
+        id: "main",
+        url: blockData.backgroundImage || "/modern-interior-3d-panels.png",
+        alt: "Основное изображение",
+      }
+      const additionalImages = blockData.images.map((imageUrl, index) => ({
+        id: `image-${index}`,
+        url: imageUrl,
+        alt: `Дополнительное изображение ${index + 1}`,
+      }))
+      return [mainImage, ...additionalImages]
+    }
+    
+    // Если дополнительных изображений нет, показываем только основное
+    return [{
+      id: "main",
+      url: blockData.backgroundImage || "/modern-interior-3d-panels.png",
+      alt: "Основное изображение",
+    }]
+  })()
+
+  console.log("[v0] HeroBlock imagesToShow:", imagesToShow)
 
   useEffect(() => {
     if (imagesToShow.length > 1) {

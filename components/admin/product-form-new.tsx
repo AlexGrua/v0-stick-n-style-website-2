@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import React from "react"
+import { api } from "@/lib/api"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -18,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 interface Category {
   id: string
   name: string
-  subs?: { id: string; name: string }[]
+  subcategories?: { id: string; name: string }[]
 }
 
 interface Supplier {
@@ -231,9 +232,9 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
             const categoryResponse = await fetch(`/api/categories/${productData.category_id}`)
             if (categoryResponse.ok) {
               const categoryData = await categoryResponse.json()
-              if (categoryData.subs && Array.isArray(categoryData.subs)) {
-                setSubcategories(categoryData.subs)
-                console.log("[v0] Loaded subcategories for edit:", categoryData.subs.length)
+                    if (categoryData.subcategories && Array.isArray(categoryData.subcategories)) {
+        setSubcategories(categoryData.subcategories)
+        console.log("[v0] Loaded subcategories for edit:", categoryData.subcategories.length)
               }
             }
           }
@@ -263,10 +264,8 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
 
     const fetchSuppliers = async () => {
       try {
-        const response = await fetch("/api/suppliers")
-        if (!response.ok) throw new Error("Failed to fetch suppliers")
-        const data = await response.json()
-        const suppliersArray = Array.isArray(data) ? data : data.items || []
+        const data = await api<{ suppliers: Supplier[]; data?: any[]; items?: any[] }>("/api/suppliers")
+        const suppliersArray = (data as any).suppliers || (data as any).items || (data as any).data || []
         console.log("[v0] Loaded suppliers:", suppliersArray.length)
         console.log(
           "[v0] Suppliers data:",
@@ -288,12 +287,12 @@ export function ProductFormNew({ open, onOpenChange, product, prefillFrom }: Pro
              if (name === "category_id" && value.category_id) {
          const categoryId = String(value.category_id)
          const selectedCategory = categories.find((cat) => String(cat.id) === categoryId)
-         if (selectedCategory && selectedCategory.subs) {
-           // Extract subcategories from the subs JSON field
-           const subs = Array.isArray(selectedCategory.subs) ? selectedCategory.subs : []
-           setSubcategories(subs)
-           console.log("[v0] Loaded subcategories for category", categoryId, ":", subs.length)
-           console.log("[v0] Subcategories data:", subs)
+                 if (selectedCategory && selectedCategory.subcategories) {
+          // Extract subcategories from the subcategories field
+          const subcategories = Array.isArray(selectedCategory.subcategories) ? selectedCategory.subcategories : []
+          setSubcategories(subcategories)
+          console.log("[v0] Loaded subcategories for category", categoryId, ":", subcategories.length)
+          console.log("[v0] Subcategories data:", subcategories)
          } else {
            setSubcategories([])
            console.log("[v0] No subcategories found for category", categoryId)

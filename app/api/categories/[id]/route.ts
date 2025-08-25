@@ -63,10 +63,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       console.log("[v0] Generated slug:", patch.slug)
     }
 
-    // Убираем обработку subs - они управляются через отдельный API
-    if (patch?.subs) {
-      console.log("[v0] Ignoring subs in category update - use /api/categories/[id]/subcategories instead")
-      delete patch.subs
+    // Убираем обработку subcategories - они управляются через отдельный API
+    if (patch?.subcategories) {
+      console.log("[v0] Ignoring subcategories in category update - use /api/subcategories instead")
+      delete patch.subcategories
     }
 
     console.log("[v0] Calling updateCategory with:", id, patch)
@@ -205,7 +205,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       name: category.name,
       slug: category.slug,
       status: category.status,
-      subs: category.subs || [],
+      subcategories: [], // Подкатегории получаются через отдельный API
       createdAt: category.created_at,
       updatedAt: category.updated_at,
     }

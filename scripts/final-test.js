@@ -37,7 +37,7 @@ async function finalTest() {
     } else {
       console.log(`✅ Категории: ${categories?.length || 0} записей`);
       categories?.forEach(cat => {
-        console.log(`  - ${cat.name} (ID: ${cat.id}, subs: ${cat.subs?.length || 0})`);
+        console.log(`  - ${cat.name} (ID: ${cat.id}, subcategories: ${cat.subcategories?.length || 0})`);
       });
     }
 

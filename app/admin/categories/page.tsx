@@ -177,7 +177,7 @@ export default function CategoriesPage() {
       )
     },
     {
-      key: "subs",
+      key: "subcategories",
       label: "Subcategories",
       render: (value) => {
         if (value && Array.isArray(value) && value.length > 0) {

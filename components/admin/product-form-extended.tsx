@@ -86,15 +86,17 @@ async function fetchCategories() {
 
 async function fetchSuppliers() {
   console.log("[v0] Fetching suppliers for product form")
-  const res = await fetch("/api/suppliers")
+  const res = await fetch("/api/suppliers", { credentials: "include" })
+  if (res.status === 401) throw new Error("Unauthorized")
   if (!res.ok) throw new Error("Failed to load suppliers")
-  const data = (await res.json()) as { items: any[] }
+  const data = (await res.json()) as { items?: any[]; data?: any[] }
   console.log("[v0] Raw suppliers data:", data)
 
-  const items: SupplierLite[] = (data.items || []).map((s: any) => ({
+  const list = Array.isArray(data.items) ? data.items : Array.isArray(data.data) ? data.data : []
+  const items: SupplierLite[] = list.map((s: any) => ({
     id: s.id,
-    shortName: s.name || s.short_name || s.shortName, // API returns 'name' field
-    companyName: s.name || s.company_name || s.companyName, // Use name as company name fallback
+    shortName: s.shortName || s.name || s.short_name,
+    companyName: s.companyName || s.name || s.company_name,
   }))
   console.log("[v0] Mapped suppliers:", items)
   return { items }
@@ -286,7 +288,7 @@ export function ExtendedProductForm({
       form.reset({
         name: "",
         category: firstCat?.id.toString() || "",
-        sub: (firstCat?.subs || [])[0]?.name || "",
+        sub: (firstCat?.subcategories || [])[0]?.name || "",
         technicalDescription: "",
         sizes: [],
         thickness: [],
@@ -784,13 +786,13 @@ export function ExtendedProductForm({
                         onValueChange={(value) => {
                           form.setValue("sub", value, { shouldDirty: true })
                         }}
-                        disabled={!selectedCategory?.subs?.length}
+                        disabled={!selectedCategory?.subcategories?.length}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select subcategory" />
                         </SelectTrigger>
                         <SelectContent>
-                          {selectedCategory?.subs?.map((sub) => (
+                          {selectedCategory?.subcategories?.map((sub) => (
                             <SelectItem key={sub.id} value={sub.id}>
                               {sub.name}
                             </SelectItem>

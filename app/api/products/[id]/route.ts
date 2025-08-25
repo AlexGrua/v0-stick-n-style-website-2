@@ -133,17 +133,34 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // Get status from specifications or fallback to product.status
     const productStatus = specs.status || product.status || 'inactive'
 
+    // Resolve subcategory info by ID from specifications if present
+    let subcategoryName = ""
+    let subcategorySlug = ""
+    if (specs.subcategoryId) {
+      try {
+        const { data: sc } = await supabase
+          .from("subcategories")
+          .select("id, name, slug")
+          .eq("id", specs.subcategoryId)
+          .single()
+        if (sc) {
+          subcategoryName = sc.name || ""
+          subcategorySlug = sc.slug || ""
+        }
+      } catch {}
+    }
+
     const mappedProduct = {
       ...product,
       // IDs for forms and relations (actual schema)
       categoryId: product.category_id,
-      subcategoryId: null, // Временно отключаем
+      subcategoryId: specs.subcategoryId || null,
       supplierId: specs.supplierId || null,
       // Names for display (from JOINs and specifications)
       category: categoryInfo.name || "",
       categorySlug: categoryInfo.slug || "",
-      subcategory: "", // Временно отключаем
-      subcategorySlug: "", // Временно отключаем
+      subcategory: specs.subcategoryName || subcategoryName,
+      subcategorySlug: specs.subcategorySlug || subcategorySlug,
       supplier: "", // Получаем из specifications
       supplierCode: specs.supplierId || "",
       supplierContact: "", // Получаем из specifications
@@ -244,11 +261,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // Get current specifications to merge with updates
     const { data: currentProduct } = await supabase
       .from("products")
-      .select("specifications")
+      .select("specifications, category_id")
       .eq("id", productId)
       .single()
 
     const currentSpecs = currentProduct?.specifications || {}
+    const currentCategoryId = currentProduct?.category_id
 
     // Prepare specifications update
     const specsUpdate = {
@@ -256,6 +274,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       ...body.specifications,
       // Ensure SKU is stored in specifications for backward compatibility
       sku: body.sku || body.specifications?.sku || currentSpecs.sku,
+    }
+
+    // Sync subcategory from top-level subcategory_id into specifications
+    const desiredSubcategoryId = body.subcategory_id || body.specifications?.subcategoryId
+    if (desiredSubcategoryId !== undefined && desiredSubcategoryId !== null && desiredSubcategoryId !== "") {
+      const subId = Number(desiredSubcategoryId)
+      if (!isNaN(subId)) {
+        // Validate subcategory exists and optionally enrich name/slug
+        const { data: subcategory, error: scError } = await supabase
+          .from("subcategories")
+          .select("id, name, slug, category_id")
+          .eq("id", subId)
+          .single()
+        if (scError || !subcategory) {
+          return NextResponse.json({ error: `Subcategory not found: ${desiredSubcategoryId}` }, { status: 400 })
+        }
+        // Ensure subcategory belongs to selected/current category
+        const targetCategoryId = body.category_id ? Number(body.category_id) : currentCategoryId
+        if (targetCategoryId && subcategory.category_id && Number(subcategory.category_id) !== Number(targetCategoryId)) {
+          return NextResponse.json({ error: `Subcategory ${subId} does not belong to category ${targetCategoryId}` }, { status: 400 })
+        }
+        ;(specsUpdate as any).subcategoryId = subId
+        ;(specsUpdate as any).subcategoryName = (body.specifications?.subcategoryName) || subcategory.name
+        ;(specsUpdate as any).subcategorySlug = (body.specifications?.subcategorySlug) || subcategory.slug
+      }
     }
 
     // Update status in specifications if provided

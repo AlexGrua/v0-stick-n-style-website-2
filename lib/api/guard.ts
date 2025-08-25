@@ -1,5 +1,5 @@
 import { cookies } from "next/headers"
-import type { Role, Permission } from "@/types/auth"
+import type { Permission } from "@/types/auth"
 
 function parseCookies(header: string | null): Record<string, string> {
   const out: Record<string, string> = {}
@@ -24,7 +24,19 @@ export function readAuthFromRequest(req: Request): { email?: string; role?: Role
   const raw = jar["sns_auth"]
   if (raw) {
     try {
-      const data = JSON.parse(decodeURIComponent(raw))
+      // JSON
+      try {
+        const data = JSON.parse(raw)
+        return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+      } catch {}
+      // URI-encoded JSON
+      try {
+        const data = JSON.parse(decodeURIComponent(raw))
+        return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+      } catch {}
+      // base64url(JSON)
+      const decoded = Buffer.from(raw, "base64url").toString("utf8")
+      const data = JSON.parse(decoded)
       return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
     } catch (e) {
       // Игнорируем ошибки парсинга cookies
@@ -35,7 +47,19 @@ export function readAuthFromRequest(req: Request): { email?: string; role?: Role
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7)
     try {
-      const data = JSON.parse(decodeURIComponent(token))
+      // JSON
+      try {
+        const data = JSON.parse(token)
+        return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+      } catch {}
+      // URI-encoded JSON
+      try {
+        const data = JSON.parse(decodeURIComponent(token))
+        return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
+      } catch {}
+      // base64url(JSON)
+      const decoded = Buffer.from(token, "base64url").toString("utf8")
+      const data = JSON.parse(decoded)
       return { email: data?.email, role: data?.role as Role, permissions: data?.permissions as Permission[] }
     } catch {
       // Игнорируем ошибки парсинга токена
@@ -58,12 +82,12 @@ export function requireRole(
 
   // superadmin имеет все права
   if (role === "superadmin") {
-    return { ok: true, user: { email, role, permissions: permissions || [] } }
+    return { ok: true, user: { email, role: role as Role, permissions: permissions || [] } }
   }
 
   // Проверяем роль
   const roleHierarchy = { staff: 1, admin: 2, superadmin: 3 }
-  const userLevel = roleHierarchy[role] || 0
+  const userLevel = roleHierarchy[role as keyof typeof roleHierarchy] || 0
   const requiredLevel = roleHierarchy[minimumRole] || 0
 
   if (userLevel < requiredLevel) {
@@ -77,7 +101,7 @@ export function requireRole(
     }
   }
 
-  return { ok: true, user: { email, role, permissions: permissions || [] } }
+  return { ok: true, user: { email, role: role as Role, permissions: permissions || [] } }
 }
 
 // Удобные функции для проверки конкретных разрешений
@@ -101,12 +125,12 @@ export function requireAnyPermission(
 
   // superadmin имеет все права
   if (role === "superadmin") {
-    return { ok: true, user: { email, role, permissions: userPermissions || [] } }
+    return { ok: true, user: { email, role: role as Role, permissions: userPermissions || [] } }
   }
 
   // Проверяем, есть ли хотя бы одно из требуемых разрешений
   if (userPermissions && permissions.some(permission => userPermissions.includes(permission))) {
-    return { ok: true, user: { email, role, permissions: userPermissions } }
+    return { ok: true, user: { email, role: role as Role, permissions: userPermissions } }
   }
 
   return { ok: false, message: "Insufficient permissions", status: 403 }

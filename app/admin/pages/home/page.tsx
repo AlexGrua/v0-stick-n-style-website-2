@@ -13,20 +13,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Upload, Eye, EyeOff, MoveUp, MoveDown, X, Save, Loader2, Check, Edit2 } from "lucide-react"
 import { useHomePageData } from "@/hooks/use-home-page-data"
 import { useAutoSave } from "@/hooks/use-auto-save"
+import { useToast } from "@/hooks/use-toast"
 import type { HomePageData, Category } from "@/lib/types"
 
 export default function HomePageAdmin() {
   const { data, loading, saving, saveBlock, saveAll, setData } = useHomePageData()
+  const { toast } = useToast()
   const [categories, setCategories] = useState<Category[]>([])
   const [previewMode, setPreviewMode] = useState(false)
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [editingBlockName, setEditingBlockName] = useState("")
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
-  const [safeCooperationFeatures, setSafeCooperationFeatures] = useState([])
-  const [safeCooperationButtons, setSafeCooperationButtons] = useState([])
+  const [safeCooperationFeatures, setSafeCooperationFeatures] = useState<any[]>([])
+  const [safeCooperationButtons, setSafeCooperationButtons] = useState<any[]>([])
   const [isCreatingBlock, setIsCreatingBlock] = useState(false)
   const [debouncedSave, setDebouncedSave] = useState<NodeJS.Timeout | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   const defaultData: HomePageData = {
     hero: {
@@ -102,45 +105,26 @@ export default function HomePageAdmin() {
   )
 
   const uploadImage = useCallback(async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = async () => {
-        const dataUrl = reader.result as string
-
-        try {
-          const response = await fetch("/api/upload", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              image: dataUrl,
-              filename: file.name,
-            }),
-          })
-
-          if (!response.ok) {
-            console.error("[v0] Upload failed:", await response.text())
-            reject(new Error("Upload failed"))
-            return
-          }
-
-          const { url: permanentUrl } = await response.json()
-          resolve(permanentUrl)
-        } catch (error) {
-          console.error("[v0] Image upload error:", error)
-          reject(error)
-        }
-      }
-      reader.onerror = () => {
-        reject(new Error("Failed to read file"))
-      }
-      reader.readAsDataURL(file)
+    const fd = new FormData()
+    fd.append("file", file)
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: fd,
+      credentials: "include",
     })
+    if (!response.ok) {
+      const text = await response.text().catch(() => "")
+      console.error("[v0] Upload failed:", text)
+      throw new Error("Upload failed")
+    }
+    const { url } = await response.json()
+    return url as string
   }, [])
 
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const response = await fetch("/api/categories")
+        const response = await fetch("/api/categories", { credentials: "include" })
         if (response.ok) {
           const result = await response.json()
           setCategories(result.items || [])
@@ -189,11 +173,11 @@ export default function HomePageAdmin() {
     return <div className="flex items-center justify-center h-64">Загрузка...</div>
   }
 
-  const updateField = (blockType: keyof HomePageData, field: string, value: any) => {
+  const updateField = (blockType: string, field: string, value: any) => {
     const updatedData = {
       ...safeData,
       [blockType]: {
-        ...safeData[blockType],
+        ...(safeData as any)[blockType],
         [field]: value,
       },
     }
@@ -210,21 +194,61 @@ export default function HomePageAdmin() {
         try {
           const uploadedUrl = await uploadImage(file)
           const currentImages = safeData.hero.images || []
-          updateField("hero", "images", [...currentImages, uploadedUrl])
-          console.log("[v0] Image added to hero slider")
+          const updatedImages = [...currentImages, uploadedUrl]
+          
+          // Обновляем состояние
+          updateField("hero", "images", updatedImages)
+          
+          // Сразу сохраняем изменения
+          const updatedData = {
+            ...safeData,
+            hero: {
+              ...safeData.hero,
+              images: updatedImages,
+            },
+          }
+          await saveAll(updatedData)
+          
+          console.log("[v0] Image added to hero slider and saved, updated images:", updatedImages)
+          toast({
+            title: "Изображение загружено",
+            description: "Изображение успешно добавлено в слайдер.",
+          })
         } catch (error) {
           console.error("[v0] Error uploading hero image:", error)
+          toast({
+            title: "Ошибка загрузки",
+            description: "Не удалось загрузить изображение. Попробуйте еще раз.",
+            variant: "destructive",
+          })
         }
       }
     }
     input.click()
   }
 
-  const removeHeroImage = (index: number) => {
+  const removeHeroImage = async (index: number) => {
     const currentImages = safeData.hero.images || []
     const updatedImages = currentImages.filter((_, i) => i !== index)
+    
+    // Обновляем состояние
     updateField("hero", "images", updatedImages)
-    console.log("[v0] Image removed from hero slider")
+    
+    // Сразу сохраняем изменения
+    const updatedData = {
+      ...safeData,
+      hero: {
+        ...safeData.hero,
+        images: updatedImages,
+      },
+    }
+    await saveAll(updatedData)
+    
+    console.log("[v0] Image removed from hero slider and saved, updated images:", updatedImages)
+    toast({
+      title: "Изображение удалено",
+      description: "Изображение успешно удалено из слайдера.",
+    })
   }
 
   const uploadCooperationImage = async () => {
@@ -268,12 +292,34 @@ export default function HomePageAdmin() {
       customBlocks: [...safeCustomBlocks, newBlock],
     }
 
+    // Сначала обновляем локальное состояние
     setData(updatedData)
 
-    setTimeout(() => {
-      startEditingBlockName(newBlock.id, newBlock.title)
+    // Сохраняем блок сразу после создания
+    try {
+      console.log("[v0] addCustomBlock - saving new block:", newBlock.id)
+      await saveAll(updatedData)
+      console.log("[v0] addCustomBlock - block saved successfully")
+      
+      toast({
+        title: "Блок создан",
+        description: "Новый блок был успешно создан и сохранен.",
+      })
+      
+      // Переключаемся на вкладку с блоками после создания
+      setTimeout(() => {
+        startEditingBlockName(newBlock.id, newBlock.title)
+        setIsCreatingBlock(false)
+      }, 100)
+    } catch (error) {
+      console.error("[v0] Error saving new block:", error)
+      toast({
+        title: "Ошибка сохранения",
+        description: "Не удалось сохранить новый блок. Попробуйте еще раз.",
+        variant: "destructive",
+      })
       setIsCreatingBlock(false)
-    }, 100)
+    }
   }
 
   const startEditingBlockName = (blockId: string, currentName: string) => {
@@ -293,7 +339,7 @@ export default function HomePageAdmin() {
   const updateCustomBlock = (id: string, field: string, value: any) => {
     const updatedData = {
       ...safeData,
-      customBlocks: safeCustomBlocks.map((block) => (block.id === id ? { ...block, [field]: value } : block)),
+      customBlocks: safeCustomBlocks.map((block: any) => (block.id === id ? { ...block, [field]: value } : block)),
     }
     setData(updatedData)
   }
@@ -422,22 +468,13 @@ export default function HomePageAdmin() {
         try {
           const reader = new FileReader()
           reader.onload = async () => {
-            const dataUrl = reader.result as string
-
-            const response = await fetch("/api/upload", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                image: dataUrl,
-                filename: file.name,
-              }),
-            })
-
+            const fd = new FormData()
+            fd.append("file", file)
+            const response = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" })
             if (!response.ok) {
               console.error("[v0] Upload failed:", await response.text())
               return
             }
-
             const { url: permanentUrl } = await response.json()
 
             const updatedData = { ...safeData }
@@ -541,7 +578,7 @@ export default function HomePageAdmin() {
       ...safeData,
       cooperation: {
         ...safeData.cooperation,
-        features: safeCooperationFeatures.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+        features: safeCooperationFeatures.map((item: any) => (item.id === id ? { ...item, [field]: value } : item)),
       },
     }
     setData(updatedData)
@@ -581,7 +618,7 @@ export default function HomePageAdmin() {
       ...safeData,
       cooperation: {
         ...safeData.cooperation,
-        buttons: safeCooperationButtons.map((button) =>
+        buttons: safeCooperationButtons.map((button: any) =>
           button.id === buttonId ? { ...button, [field]: value } : button,
         ),
       },
@@ -592,17 +629,73 @@ export default function HomePageAdmin() {
   const saveAllData = async () => {
     setIsSaving(true)
     try {
-      await saveAll(safeData)
-      console.log("[v0] All data saved successfully")
+      console.log("[v0] saveAllData - starting save...")
+      console.log("[v0] saveAllData - data size:", JSON.stringify(safeData).length, "characters")
+      
+      const result = await saveAll(safeData)
+      console.log("[v0] saveAllData - save completed successfully, result:", result)
+      
+      toast({
+        title: "Сохранено",
+        description: "Все изменения были успешно сохранены.",
+      })
     } catch (error) {
-      console.error("[v0] Failed to save data:", error)
+      console.error("[v0] saveAllData - failed to save data:", error)
+      
+      let errorMessage = "Не удалось сохранить изменения. Попробуйте еще раз."
+      if (error instanceof Error) {
+        errorMessage = `Ошибка: ${error.message}`
+      }
+      
+      toast({
+        title: "Ошибка сохранения",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
   const uploadHeroBackground = async () => {
-    handleImageUpload("hero", "backgroundImage")
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          const uploadedUrl = await uploadImage(file)
+          
+          // Обновляем состояние
+          updateField("hero", "backgroundImage", uploadedUrl)
+          
+          // Сразу сохраняем изменения
+          const updatedData = {
+            ...safeData,
+            hero: {
+              ...safeData.hero,
+              backgroundImage: uploadedUrl,
+            },
+          }
+          await saveAll(updatedData)
+          
+          console.log("[v0] Hero background image uploaded and saved")
+          toast({
+            title: "Изображение загружено",
+            description: "Фоновое изображение успешно обновлено.",
+          })
+        } catch (error) {
+          console.error("[v0] Error uploading hero background:", error)
+          toast({
+            title: "Ошибка загрузки",
+            description: "Не удалось загрузить изображение. Попробуйте еще раз.",
+            variant: "destructive",
+          })
+        }
+      }
+    }
+    input.click()
   }
 
   const createCustomBlock = async () => {
@@ -694,6 +787,105 @@ export default function HomePageAdmin() {
           <Button variant="outline" onClick={() => window.open("/", "_blank")}>
             <Eye className="h-4 w-4 mr-2" />
             Preview
+          </Button>
+          <Button
+            variant="outline"
+            disabled={isPublishing}
+            onClick={async () => {
+              setIsPublishing(true)
+              try {
+                const res = await fetch("/api/pages/home/publish", { method: "POST", credentials: "include" })
+                if (!res.ok) {
+                  const errorText = await res.text()
+                  console.error("[v0] Publish failed:", errorText)
+                  toast({
+                    title: "Ошибка публикации",
+                    description: "Не удалось опубликовать страницу. Попробуйте еще раз.",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                console.log("[v0] Published")
+                toast({
+                  title: "Успешно опубликовано",
+                  description: "Страница была успешно опубликована и теперь доступна посетителям.",
+                })
+              } catch (e) {
+                console.error("[v0] Publish error:", e)
+                toast({
+                  title: "Ошибка публикации",
+                  description: "Произошла ошибка при публикации. Попробуйте еще раз.",
+                  variant: "destructive",
+                })
+              } finally {
+                setIsPublishing(false)
+              }
+            }}
+          >
+            {isPublishing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Публикация...
+              </>
+            ) : (
+              "Опубликовать"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const res = await fetch("/api/pages/home/export", { credentials: "include" })
+                if (!res.ok) {
+                  console.error("[v0] Export failed:", await res.text())
+                  return
+                }
+                const data = await res.json()
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = "home-blocks.json"
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch (e) {
+                console.error("[v0] Export error:", e)
+              }
+            }}
+          >
+            Export JSON
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const input = document.createElement("input")
+              input.type = "file"
+              input.accept = "application/json"
+              input.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0]
+                if (!file) return
+                try {
+                  const text = await file.text()
+                  const json = JSON.parse(text)
+                  const res = await fetch("/api/pages/home/import", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(json),
+                    credentials: "include",
+                  })
+                  if (!res.ok) {
+                    console.error("[v0] Import failed:", await res.text())
+                    return
+                  }
+                  console.log("[v0] Import success")
+                } catch (err) {
+                  console.error("[v0] Import error:", err)
+                }
+              }
+              input.click()
+            }}
+          >
+            Import JSON
           </Button>
         </div>
       </div>
@@ -898,13 +1090,13 @@ export default function HomePageAdmin() {
                 </div>
 
                 {(safeData.hero.images || []).length > 0 && (
-                  <div className="grid grid-cols-6 gap-2">
+                  <div className="grid grid-cols-6 gap-3 p-2 rounded border bg-white/50">
                     {(safeData.hero.images || []).map((image, index) => (
                       <div key={index} className="relative">
                         <img
                           src={image || "/placeholder.svg"}
                           alt={`Hero image ${index + 1}`}
-                          className="w-full h-16 object-cover rounded border"
+                          className="w-full h-24 object-contain rounded border bg-white"
                         />
                         <Button
                           size="sm"
@@ -1103,6 +1295,11 @@ export default function HomePageAdmin() {
                               <Upload className="h-4 w-4 mr-2" />
                               Загрузить изображение
                             </Button>
+                            <Input
+                              placeholder="Ссылка на товар (/catalog/slug)"
+                              value={item.link || ""}
+                              onChange={(e) => updateProduct(item.id, "link", e.target.value)}
+                            />
                           </div>
                         </div>
                         <Button
@@ -1231,10 +1428,10 @@ export default function HomePageAdmin() {
                       placeholder="Ссылка"
                       className="flex-1"
                     />
-                    <Select
-                      value={button.variant}
-                      onChange={(value) => updateCooperationButton(button.id, "variant", value)}
-                    >
+                                         <Select
+                       value={button.variant}
+                       onValueChange={(value) => updateCooperationButton(button.id, "variant", value)}
+                     >
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>

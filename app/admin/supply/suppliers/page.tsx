@@ -10,38 +10,63 @@ import { ArrowUpDown, MoreHorizontal, Pencil, Trash2, Copy, Plus, CheckCircle, X
 import type { Supplier, SupplierStatus } from "@/lib/suppliers-store"
 import type { Category } from "@/lib/types"
 import { SupplierForm } from "@/components/admin/supplier-form"
+import { api } from "@/lib/api"
 import { useErrorHandler } from "@/hooks/use-error-handler"
 import { cn } from "@/lib/utils"
+
+async function mustOk(res: Response) {
+  // не ломаемся на пустом теле
+  let payload: any = null;
+  try { payload = await res.json(); } catch {}
+
+  if (!res.ok) {
+    const err = {
+      error: payload?.error || res.statusText || 'Network error',
+      code: payload?.code || res.status || 'NO_CODE',
+      details: payload?.details || null,
+      status: res.status,
+    };
+    throw err;
+  }
+  return payload;
+}
 
 async function loadSuppliers(params: { search?: string; status?: SupplierStatus | "all" }) {
   const q = new URLSearchParams()
   if (params.search) q.set("search", params.search)
   if (params.status && params.status !== "all") q.set("status", params.status)
-  const res = await fetch(`/api/suppliers?${q.toString()}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("Failed to load suppliers")
-  const data = await res.json()
-  
-  const mappedItems = (data.items || []).map((item: any) => ({
+
+  const data = await api<{ suppliers?: any[]; items?: any[]; data?: any[]; total?: number }>(`/api/suppliers?${q.toString()}`)
+  const rows = (data.suppliers ?? data.items ?? data.data ?? []) as any[]
+
+  const mappedItems = rows.map((item: any) => ({
     id: item.id,
     code: item.code || `S${item.id.toString().padStart(3, '0')}`,
-    shortName: item.short_name || item.shortName,
-    companyName: item.company_name || item.companyName,
-    contactPerson: item.contact_person || item.contactPerson,
-    contactEmail: item.contact_email || item.contactEmail,
-    contactPhone: item.contact_phone || item.contactPhone,
+    shortName: item.shortName,
+    companyName: item.companyName,
+    contactPerson: item.contactPerson,
+    contactEmail: item.contactEmail,
+    contactPhone: item.contactPhone,
     messenger: item.messenger,
     website: item.website,
     categories: item.categories || [],
     status: item.status
   }))
-  
-  return { items: mappedItems, total: data.total }
+
+  return { items: mappedItems, total: data.total ?? rows.length }
 }
 
 async function loadCategories() {
   const res = await fetch("/api/categories", { cache: "no-store" })
-  if (!res.ok) throw new Error("Failed to load categories")
-  return (await res.json()) as { items: Category[] }
+  
+  // спец-ветка для 401 — увести на логин
+  if (res.status === 401) {
+    window.location.href = `/admin/login?next=${encodeURIComponent(location.pathname)}`;
+    throw new Error('Redirecting to login...');
+  }
+  
+  const data = await mustOk(res);
+  return { items: data.items || [] } as { items: Category[] }
 }
 
 type SortKey = "id" | "code" | "shortName" | "companyName" | "status" | "categories"
@@ -64,7 +89,10 @@ export default function SuppliersPage() {
   const [sortKey, setSortKey] = React.useState<SortKey>("shortName")
   const [sortDir, setSortDir] = React.useState<SortDir>("asc")
 
+  const inFlightRef = React.useRef(false)
   const reload = React.useCallback(async () => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setLoading(true)
     try {
       const [sup, cats] = await Promise.all([loadSuppliers({ search, status }), loadCategories()])
@@ -75,8 +103,9 @@ export default function SuppliersPage() {
       handleApiError(e, "Failed to load suppliers")
     } finally {
       setLoading(false)
+      inFlightRef.current = false
     }
-  }, [search, status, handleApiError])
+  }, [search, status])
 
   React.useEffect(() => {
     reload()
@@ -85,7 +114,7 @@ export default function SuppliersPage() {
   const onDelete = async (supplier: Supplier) => {
     if (!confirm("Delete this supplier?")) return
     try {
-      const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/suppliers/${supplier.id}`, { method: "DELETE", credentials: 'include' })
       const data = await res.json()
       
       if (!res.ok) {
@@ -110,7 +139,8 @@ export default function SuppliersPage() {
       const res = await fetch(`/api/suppliers/${supplier.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus }),
+        credentials: 'include'
       })
       
       const data = await res.json()

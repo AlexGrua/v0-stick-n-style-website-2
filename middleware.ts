@@ -1,37 +1,34 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-// Cookie value is URI-encoded JSON: { email, role }
-function parseAuthCookie(req: NextRequest): { email?: string; role?: string } | null {
-  const raw = req.cookies.get("sns_auth")?.value
-  if (!raw) return null
-  try {
-    const json = decodeURIComponent(raw)
-    const data = JSON.parse(json)
-    return typeof data === "object" && data ? data : null
-  } catch {
-    return null
-  }
+export const config = {
+  // защищаем ТОЛЬКО страницы админки; API не трогаем
+  matcher: ['/admin/:path*'],
+};
+
+function parseAuth(raw?: string | null) {
+  if (!raw) return null;
+  try { 
+    return JSON.parse(raw);
+  } catch { return null; }
 }
 
 export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl
+  const url = req.nextUrl;
+  const isLogin = url.pathname.startsWith('/admin/login');
+  if (isLogin) return NextResponse.next();
 
-  // Protect all admin routes except the login page
-  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
-    const auth = parseAuthCookie(req)
-    if (!auth?.email || !auth?.role) {
-      const url = req.nextUrl.clone()
-      url.pathname = "/admin/login"
-      url.search = `?returnTo=${encodeURIComponent(pathname + (search || ""))}`
-      return NextResponse.redirect(url)
-    }
-    // Future: route-level role checks can go here
+  const raw = req.cookies.get('sns_auth')?.value || null;
+  console.log(`[MIDDLEWARE] Path: ${url.pathname}, Cookie: ${raw ? 'present' : 'missing'}`);
+  const session = parseAuth(raw);
+  console.log(`[MIDDLEWARE] Session:`, session);
+
+  if (!session) {
+    console.log(`[MIDDLEWARE] No session, redirecting to login`);
+    const login = new URL('/admin/login', url);
+    login.searchParams.set('next', url.pathname + url.search);
+    return NextResponse.redirect(login);
   }
-
-  return NextResponse.next()
-}
-
-export const config = {
-  matcher: ["/admin/:path*"],
+  console.log(`[MIDDLEWARE] Session OK, proceeding`);
+  return NextResponse.next();
 }

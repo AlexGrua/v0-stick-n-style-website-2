@@ -38,7 +38,9 @@ export async function getHomePageData(): Promise<HomePageData | null> {
       return defaultData
     }
 
-    return data.data as HomePageData
+    const homePageData = data.data as HomePageData
+    console.log("[v0] getHomePageData - loaded from DB:", JSON.stringify(homePageData, null, 2))
+    return homePageData
   } catch (error) {
     console.error("Error in getHomePageData:", error)
     return null
@@ -47,20 +49,43 @@ export async function getHomePageData(): Promise<HomePageData | null> {
 
 export async function saveHomePageData(data: HomePageData): Promise<boolean> {
   try {
-    const { error } = await supabaseAdmin.from("home_page_data").upsert({
-      id: 1, // Используем фиксированный ID для единственной записи
-      data: data,
-      updated_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      console.error("Error saving home page data:", error)
+    console.log("[v0] saveHomePageData - starting save...")
+    console.log("[v0] saveHomePageData - data size:", JSON.stringify(data).length, "characters")
+    
+    // Проверяем подключение к Supabase
+    if (!supabaseAdmin) {
+      console.error("[v0] saveHomePageData - supabaseAdmin is not available")
       return false
     }
 
+    const upsertData = {
+      id: 1, // Используем фиксированный ID для единственной записи
+      data: data,
+      updated_at: new Date().toISOString(),
+    }
+
+    console.log("[v0] saveHomePageData - upserting data...")
+    const { error, data: result } = await supabaseAdmin.from("home_page_data").upsert(upsertData).select()
+
+    if (error) {
+      console.error("[v0] saveHomePageData - Supabase error:", error)
+      console.error("[v0] saveHomePageData - Error details:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      })
+      return false
+    }
+
+    console.log("[v0] saveHomePageData - data saved successfully, result:", result)
     return true
   } catch (error) {
-    console.error("Error in saveHomePageData:", error)
+    console.error("[v0] saveHomePageData - Exception:", error)
+    if (error instanceof Error) {
+      console.error("[v0] saveHomePageData - Error message:", error.message)
+      console.error("[v0] saveHomePageData - Error stack:", error.stack)
+    }
     return false
   }
 }
@@ -186,12 +211,12 @@ export function seed() {
   if (state.seeded) return
 
   const now = new Date().toISOString()
-  // Seed categories with subs
-  const mkCat = (name: string, slug: string, subs: string[]): Category => ({
-    id: crypto.randomUUID(),
+  // Seed categories with subcategories
+  const mkCat = (name: string, slug: string, subcategories: string[]): Category => ({
+    id: Math.floor(Math.random() * 1000),
     name,
     slug,
-    subs: subs.map((n) => ({ id: crypto.randomUUID(), name: n })),
+    subcategories: subcategories.map((n, index) => ({ id: index + 1, name: n })),
     createdAt: now,
     updatedAt: now,
   })
@@ -223,7 +248,7 @@ export function seed() {
 
      // Seed a few products
    const make = (partial: Partial<Product>): Product => ({
-     id: crypto.randomUUID(),
+     id: Math.floor(Math.random() * 1000),
      sku: partial.sku ?? generateSku((partial.category ?? "wall-panel") as any),
      name: partial.name ?? "Sample",
      description: partial.description,
@@ -304,7 +329,7 @@ export function seed() {
       min: undefined,
       max: undefined,
       step: undefined,
-      categoryIds: [wp.id],
+      categoryIds: [wp.id.toString()],
       order: 1,
       createdAt: now,
       updatedAt: now,
@@ -321,7 +346,7 @@ export function seed() {
       min: undefined,
       max: undefined,
       step: undefined,
-      categoryIds: [fl.id, ad.id],
+      categoryIds: [fl.id.toString(), ad.id.toString()],
       order: 2,
       createdAt: now,
       updatedAt: now,
@@ -471,7 +496,7 @@ export async function getCategories(): Promise<Category[]> {
        id: row.id,
        name: row.name,
        slug: row.slug,
-       subs: row.subs || [],
+       subcategories: [], // Подкатегории получаются через отдельный API
        createdAt: row.created_at,
        updatedAt: row.updated_at,
      }))
@@ -509,7 +534,7 @@ export async function saveCategory(category: Partial<Category>): Promise<Categor
       name: result.data.name,
       slug: result.data.slug,
       status: result.data.status, // Добавляем статус
-      subs: result.data.subs || [],
+      subcategories: [], // Подкатегории получаются через отдельный API
       createdAt: result.data.created_at,
       updatedAt: result.data.updated_at,
     }
@@ -535,7 +560,7 @@ export async function getCategoryById(id: string): Promise<Category | null> {
       name: data.name,
       slug: data.slug,
       status: data.status, // Добавляем статус
-      subs: data.subs || [],
+      subcategories: [], // Подкатегории получаются через отдельный API
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     }
@@ -567,7 +592,7 @@ export async function updateCategory(id: string, updates: Partial<Category>): Pr
       name: data.name,
       slug: data.slug,
       status: data.status, // Добавляем статус в возвращаемые данные
-      subs: data.subs || [],
+      subcategories: [], // Подкатегории получаются через отдельный API
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     }

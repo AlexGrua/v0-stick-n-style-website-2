@@ -45,7 +45,7 @@ export async function GET() {
     }
 
     // Группируем подкатегории по category_id
-    const subsByCategory = subcategories?.reduce((acc: Record<number, Array<{id: number, name: string}>>, sub: any) => {
+    const subcategoriesByCategory = subcategories?.reduce((acc: Record<number, Array<{id: number, name: string}>>, sub: any) => {
       if (!acc[sub.category_id]) {
         acc[sub.category_id] = []
       }
@@ -62,7 +62,7 @@ export async function GET() {
       name: category.name,
       slug: category.slug,
       status: category.status,
-      subs: subsByCategory[category.id] || [], // Используем данные из subcategories
+      subcategories: subcategoriesByCategory[category.id] || [], // Используем данные из subcategories
       createdAt: category.created_at,
       updatedAt: category.updated_at
     })) || []
@@ -94,20 +94,20 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
 
-    // Валидация подкатегорий
-    const subs = body.subs || []
-    if (!Array.isArray(subs)) {
-      console.log('[api] Validation error: subs must be an array')
+    // Валидация подкатегорий (если переданы)
+    const subcategories = body.subcategories || []
+    if (!Array.isArray(subcategories)) {
+      console.log('[api] Validation error: subcategories must be an array')
       return NextResponse.json({ 
-        error: "Invalid subs format", 
+        error: "Invalid subcategories format", 
         code: 'VALIDATION_ERROR',
         details: 'Subcategories must be an array'
       }, { status: 400 })
     }
 
     // Проверяем каждую подкатегорию
-    for (let i = 0; i < subs.length; i++) {
-      const sub = subs[i]
+    for (let i = 0; i < subcategories.length; i++) {
+      const sub = subcategories[i]
       if (!sub || typeof sub.name !== 'string' || !sub.name.trim()) {
         console.log('[api] Validation error: invalid subcategory at index', i)
         return NextResponse.json({ 
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log('[api] Validation passed. Name:', name, 'Subs count:', subs.length)
+    console.log('[api] Validation passed. Name:', name, 'Subcategories count:', subcategories.length)
 
     const supabase = createClient()
     
@@ -171,10 +171,10 @@ export async function POST(req: Request) {
     console.log('[api] Category created successfully:', category.id)
 
     // Создаем подкатегории, если они есть
-    if (subs.length > 0) {
-      console.log('[api] Creating subcategories:', subs.length)
+    if (subcategories.length > 0) {
+      console.log('[api] Creating subcategories:', subcategories.length)
       
-      const subcategoriesData = subs.map((sub: any) => ({
+      const subcategoriesData = subcategories.map((sub: any) => ({
         name: sub.name.trim(),
         slug: toSlug(sub.name.trim()),
         description: '',
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
 
       console.log('[api] Subcategories data to insert:', subcategoriesData)
 
-      const { data: subcategories, error: subsError } = await supabase
+      const { data: createdSubcategories, error: subsError } = await supabase
         .from("subcategories")
         .insert(subcategoriesData)
         .select()
@@ -207,7 +207,7 @@ export async function POST(req: Request) {
         // Возвращаем категорию без подкатегорий
         const result = {
           ...category,
-          subs: []
+          subcategories: []
         }
         
         console.timeEnd('[api] POST /api/categories')
@@ -222,7 +222,7 @@ export async function POST(req: Request) {
     // Возвращаем категорию с подкатегориями
     const result = {
       ...category,
-      subs: subs.map((sub: any, index: number) => ({
+      subcategories: subcategories.map((sub: any, index: number) => ({
         id: sub.id || `temp-${index}`,
         name: sub.name
       }))

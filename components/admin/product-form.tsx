@@ -203,7 +203,7 @@ export function ProductForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [categories, form.watch("category")],
   )
-  const subs = selectedCat?.subs ?? []
+      const subcategories = selectedCat?.subcategories ?? []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,7 +225,7 @@ export function ProductForm({
                 value={form.watch("category")}
                 onValueChange={(v: string) => {
                   form.setValue("category", v, { shouldDirty: true })
-                  const first = (categories.find((c) => c.slug === v)?.subs ?? [])[0]?.name || "Sub 1"
+                  const first = (categories.find((c) => c.slug === v)?.subcategories ?? [])[0]?.name || "Sub 1"
                   form.setValue("sub", first, { shouldDirty: true })
                 }}
               >
@@ -248,7 +248,7 @@ export function ProductForm({
                   <SelectValue placeholder="Select Sub" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(subs.length ? subs.map((s) => s.name) : ["Sub 1"]).map((name) => (
+                  {(subcategories.length ? subcategories.map((s) => s.name) : ["Sub 1"]).map((name) => (
                     <SelectItem key={name} value={name}>
                       {name}
                     </SelectItem>

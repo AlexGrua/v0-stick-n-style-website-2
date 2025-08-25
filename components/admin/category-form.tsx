@@ -16,7 +16,7 @@ const schema = z.object({
   id: z.string().optional(),
   name: z.string().min(2),
   slug: z.string().optional(),
-  subs: z.array(z.object({ id: z.string().optional(), name: z.string().min(1) })),
+  subcategories: z.array(z.object({ id: z.string().optional(), name: z.string().min(1) })),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -36,7 +36,7 @@ export function CategoryForm({
   const [isSaving, setIsSaving] = useState(false)
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", slug: "", subs: [] },
+    defaultValues: { name: "", slug: "", subcategories: [] },
   })
 
   useEffect(() => {
@@ -46,14 +46,14 @@ export function CategoryForm({
         id: String(category.id), // Ensure ID is string
         name: category.name,
         slug: category.slug,
-        subs: (category.subs || []).map(sub => ({ 
+        subcategories: (category.subcategories || []).map(sub => ({ 
           id: sub.id ? String(sub.id) : undefined, 
           name: sub.name 
         })),
       })
     } else {
       console.log("[v0] Resetting form for new category")
-      form.reset({ name: "", slug: "", subs: [] })
+      form.reset({ name: "", slug: "", subcategories: [] })
     }
   }, [category, form])
 
@@ -70,13 +70,13 @@ export function CategoryForm({
       console.log("[v0] Making request to:", url, "with method:", method)
 
       // Нормализуем данные подкатегорий
-      const normalizedSubs = (values.subs || [])
+      const normalizedSubs = (values.subcategories || [])
         .map((s: any) => (typeof s === 'string' ? { name: s } : { name: s?.name || '' }))
         .filter((s: any) => s.name.trim().length > 0)
 
       const payload = {
         ...values,
-        subs: normalizedSubs,
+        subcategories: normalizedSubs,
       }
 
       console.log("[v0] Normalized payload:", payload)
@@ -108,18 +108,18 @@ export function CategoryForm({
     }
   }
 
-  const subs = form.watch("subs") || []
+      const subcategories = form.watch("subcategories") || []
   function addSub(name: string) {
     const val = name.trim()
     if (!val) return
-    const currentSubs = Array.isArray(subs) ? subs : []
-    form.setValue("subs", [...currentSubs, { name: val }], { shouldDirty: true })
+    const currentSubcategories = Array.isArray(subcategories) ? subcategories : []
+          form.setValue("subcategories", [...currentSubcategories, { name: val }], { shouldDirty: true })
   }
   function removeSub(index: number) {
-    const currentSubs = Array.isArray(subs) ? subs : []
-    const next = [...currentSubs]
+    const currentSubcategories = Array.isArray(subcategories) ? subcategories : []
+    const next = [...currentSubcategories]
     next.splice(index, 1)
-    form.setValue("subs", next, { shouldDirty: true })
+          form.setValue("subcategories", next, { shouldDirty: true })
   }
 
   return (
@@ -141,8 +141,8 @@ export function CategoryForm({
           <div className="grid gap-2">
             <Label>Subcategories</Label>
             <div className="mb-2 flex flex-wrap gap-2">
-              {Array.isArray(subs) &&
-                subs.map((s, i) => (
+              {Array.isArray(subcategories) &&
+                subcategories.map((s, i) => (
                   <span
                     key={`${s.name}-${i}`}
                     className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs"

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useContentTranslations } from "@/lib/content-i18n"
+import { BlockRenderer } from "@/components/blocks/renderer"
 
 type AboutPageData = {
   hero: {
@@ -97,10 +98,16 @@ export default function AboutPage() {
   const [data, setData] = useState<AboutPageData>(defaultData)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { dict } = useContentTranslations("page", "about")
+  
+  // Check for feature flag or query parameter
+  const useBlocks = process.env.NEXT_PUBLIC_FEATURE_BLOCK_ABOUT === 'true' || 
+                   (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newblocks') === '1')
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (!useBlocks) {
+      loadData()
+    }
+  }, [useBlocks])
 
   async function loadData() {
     try {
@@ -242,6 +249,19 @@ export default function AboutPage() {
     }
   }
 
+  // Render with blocks if feature flag is enabled
+  if (useBlocks) {
+    return (
+      <div className="min-h-screen bg-white">
+        <main className="container mx-auto px-4 py-8">
+          <BlockRenderer pageKey="about" />
+        </main>
+        <SiteFooter />
+      </div>
+    )
+  }
+
+  // Legacy render
   return (
     <div className="min-h-screen bg-white">
       <main className="container mx-auto px-4 py-8">{data.blockOrder.map(renderBlock)}</main>

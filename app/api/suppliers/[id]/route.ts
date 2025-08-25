@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { requireRole } from "@/lib/api/guard"
+import { normalizeCategoryField } from "@/lib/normalize"
+
+function normalizeCategories(raw: any): string[] {
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+      return [raw]
+    } catch {
+      return [raw]
+    }
+  }
+  return []
+}
 
 const supabase = createClient()
 
@@ -23,7 +38,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
       contactEmail: supplier.email,
       contactPhone: supplier.phone,
       address: supplier.address,
-      categories: supplier.categories,
+      categories: normalizeCategoryField(supplier.categories),
       status: supplier.status,
       notes: supplier.notes,
     }
@@ -81,7 +96,7 @@ export async function PUT(request: Request, ctx: RouteContext) {
       contactEmail: supplier.email,
       contactPhone: supplier.phone,
       address: supplier.address,
-      categories: supplier.categories,
+      categories: normalizeCategoryField(supplier.categories),
       status: supplier.status,
       notes: supplier.notes,
     }
@@ -187,7 +202,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
       contactEmail: supplier.email,
       contactPhone: supplier.phone,
       address: supplier.address,
-      categories: supplier.categories,
+      categories: normalizeCategoryField(supplier.categories),
       status: supplier.status,
       notes: supplier.notes,
     }

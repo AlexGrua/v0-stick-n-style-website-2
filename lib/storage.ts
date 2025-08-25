@@ -105,7 +105,7 @@ export type StoredCategory = {
   id: string
   name: string
   slug: string
-  subs: Array<{ id?: string; name: string }>
+  subcategories: Array<{ id?: string; name: string }>
   createdAt: string
   updatedAt: string
 }

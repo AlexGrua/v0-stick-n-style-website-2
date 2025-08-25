@@ -5,8 +5,27 @@ import { ProductGalleryBlock } from "@/components/home/product-gallery-block"
 import { CooperationBlock } from "@/components/home/cooperation-block"
 import { CustomBlock } from "@/components/home/custom-block"
 import { getHomePageData } from "@/lib/db"
+import { getBlocks } from "@/lib/pages"
+import { BlockRenderer } from "@/components/blocks/renderer"
 
 export default async function HomePage() {
+  // Временно отключаем новую блочную систему
+  // const flag = process.env.FEATURE_BLOCK_HOME === "1"
+  // const useBlocks = flag
+  const useBlocks = false
+
+  if (useBlocks) {
+    const blocks = await getBlocks('home', { draft: false })
+    return (
+      <div className="min-h-screen bg-white">
+        <main className="space-y-0">
+          <BlockRenderer blocks={blocks as any} />
+        </main>
+        <SiteFooter />
+      </div>
+    )
+  }
+
   const homePageData = await getHomePageData()
 
   if (!homePageData) {

@@ -1,11 +1,36 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/api/guard"
+import { listSuppliers as listSeedSuppliers } from "@/lib/suppliers-store"
+import { normalizeCategoryField } from "@/lib/normalize"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 const supabase = createClient()
 
+function normalizeCategories(raw: any): string[] {
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+      return [raw]
+    } catch {
+      return [raw]
+    }
+  }
+  return []
+}
+
 export async function GET(request: Request) {
   try {
+    const guard = requirePermission(request, "suppliers.view")
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message, code: 'UNAUTHORIZED' }, { status: guard.status })
+    }
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -24,10 +49,14 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error("Error fetching suppliers:", error)
-      return NextResponse.json({ items: [], total: 0 }, { status: 500 })
+      return NextResponse.json({ 
+        error: "Failed to load suppliers", 
+        code: 'SUPPLIERS_GET_FAILED',
+        details: error.message 
+      }, { status: 500 })
     }
 
-    const mappedSuppliers = (suppliers || []).map((supplier: any) => ({
+    let mappedSuppliers = (suppliers || []).map((supplier: any) => ({
       id: supplier.id,
       code: `S${supplier.id.toString().padStart(3, '0')}`, // Генерируем код, так как колонки code нет
       shortName: supplier.name, // Using name as shortName for frontend compatibility
@@ -36,18 +65,39 @@ export async function GET(request: Request) {
       contactEmail: supplier.email,
       contactPhone: supplier.phone,
       address: supplier.address,
-      categories: supplier.categories,
+      categories: normalizeCategoryField(supplier.categories),
       status: supplier.status,
       notes: supplier.notes,
     }))
 
-    return NextResponse.json({
-      items: mappedSuppliers,
-      total: mappedSuppliers.length,
-    })
+    // Dev fallback: if DB is empty, use in-memory seed so UI isn't blank
+    if (!mappedSuppliers.length && process.env.NODE_ENV !== 'production') {
+      try {
+        const seed = listSeedSuppliers().items
+        mappedSuppliers = seed.map((s) => ({
+          id: s.id,
+          code: s.code || s.id,
+          shortName: s.shortName,
+          companyName: s.companyName,
+          contactPerson: s.contactPerson,
+          contactEmail: s.contactEmail,
+          contactPhone: s.contactPhone,
+          address: '',
+          categories: s.categories || [],
+          status: s.status,
+          notes: s.notes || '',
+        }))
+      } catch {}
+    }
+
+    return NextResponse.json({ suppliers: mappedSuppliers, data: mappedSuppliers, items: mappedSuppliers, total: mappedSuppliers.length })
   } catch (error) {
     console.error("Error in suppliers GET:", error)
-    return NextResponse.json({ items: [], total: 0 }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Failed to load suppliers", 
+      code: 'SUPPLIERS_GET_FAILED',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
 

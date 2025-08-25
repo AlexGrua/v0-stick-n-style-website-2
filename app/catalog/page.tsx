@@ -125,7 +125,7 @@ export default function CatalogPage() {
   const activeSubcategories = React.useMemo(() => {
     if (activeCategory === "all") return []
     const category = categories.find((c) => c.slug === activeCategory)
-    return category?.subs || []
+    return category?.subcategories || []
   }, [categories, activeCategory])
 
   const filteredProducts = React.useMemo(() => {
@@ -145,8 +145,8 @@ export default function CatalogPage() {
       let matchesSubcategory = true
       if (activeSubcategory !== "all" && activeCategory !== "all") {
         const selectedCategory = categories.find((c) => c.slug === activeCategory)
-        if (selectedCategory && selectedCategory.subs) {
-          const selectedSub = selectedCategory.subs.find((sub: any) => sub.name === activeSubcategory)
+        if (selectedCategory && selectedCategory.subcategories) {
+          const selectedSub = selectedCategory.subcategories.find((sub: any) => sub.name === activeSubcategory)
           if (selectedSub) {
             matchesSubcategory = p.subcategory_id === selectedSub.id || p.sub === activeSubcategory
           } else {
